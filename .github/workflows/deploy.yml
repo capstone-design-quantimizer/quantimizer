@@ -1,4 +1,4 @@
-name: Build and Deploy Quant System to Azure VM
+name: Build and Deploy
 
 on:
   push:
@@ -63,28 +63,36 @@ jobs:
           ssh-private-key: ${{ secrets.AZURE_VM_SSH_KEY }}
 
       - name: Deploy to Azure VM via SSH
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          AZ_USER: ${{ secrets.AZURE_VM_USERNAME }}
+          AZ_HOST: ${{ secrets.AZURE_VM_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.AZURE_VM_USERNAME }}@${{ secrets.AZURE_VM_HOST }} << 'EOF'
-            mkdir -p ~/IntelliQuant-System
-            cd ~/IntelliQuant-System
-            
-            if [ ! -d ".git" ]; then
-              git clone https://github.com/${{ github.repository }}.git .
-            else
-              git pull origin main
-            fi
-            
-            echo ">>> Logging in to GHCR..."
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-            
-            echo ">>> Pulling latest images from GHCR..."
-            docker compose pull
-            
-            echo ">>> Restarting services with new images..."
-            docker compose up -d
-            
-            echo ">>> Pruning old Docker images..."
+          set -euo pipefail
+
+          ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "mkdir -p ~/Quantimizer-System"
+
+          scp -o StrictHostKeyChecking=no ./deploy/docker-compose.yml \
+            "$AZ_USER@$AZ_HOST:~/Quantimizer-System/docker-compose.yml"
+
+          ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "
+            set -euo pipefail
+            cd ~/Quantimizer-System
+
+            echo '>>> Logging in to GHCR...'
+            echo '$GHCR_TOKEN' | docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin
+
+            echo '>>> Pulling latest images from GHCR...'
+            docker compose -f docker-compose.yml pull
+
+            echo '>>> Restarting services with new images...'
+            docker compose -f docker-compose.yml up -d
+
+            echo '>>> Pruning old Docker images...'
             docker image prune -f
 
-            echo ">>> Deployment to Azure VM has been completed successfully!"
-          'EOF'
+            echo '>>> Deployment to Azure VM has been completed successfully!'
+          "
+
