@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/quantimizer-org/quantimizer-sysytem/backend:latest
+    container_name: quant-backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: ghcr.io/quantimizer-org/quantimizer-system/frontend:latest
+    container_name: quant-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

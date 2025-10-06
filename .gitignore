@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv
+venv/
+
+# Environment variables
+.env
+.env.*
+
+# IDEs
+.vscode/
+.idea/
+
+# Node.js
+node_modules/
+dist/
+.npm
+npm-debug.log*
+yarn-error.log*
+
+# Frontend build output
+/frontend/dist
