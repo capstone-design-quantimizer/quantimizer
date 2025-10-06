@@ -74,7 +74,7 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "mkdir -p ~/Quantimizer-System"
 
-          scp -o StrictHostKeyChecking=no ./deploy/docker-compose.yml \
+          scp -o StrictHostKeyChecking=no ./docker-compose.yml \
             "$AZ_USER@$AZ_HOST:~/Quantimizer-System/docker-compose.yml"
 
           ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "
