@@ -1,23 +1,41 @@
-# Python
-__pycache__/
-*.pyc
-.venv
-venv/
-
-# Environment variables
-.env
-.env.*
-
-# IDEs
-.vscode/
+# ===================================================================
+# General / IDEs / OS
+# ===================================================================
 .idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
 
-# Node.js
-node_modules/
-dist/
-.npm
-npm-debug.log*
-yarn-error.log*
+# ===================================================================
+# Backend (Python / FastAPI)
+# ===================================================================
+backend/__pycache__/
+backend/*.pyc
+backend/.venv
+backend/venv/
+backend/.env
+backend/.env.*
+backend/.pytest_cache
 
-# Frontend build output
-/frontend/dist
+# ===================================================================
+# Frontend (Node.js / React / Vite)
+# ===================================================================
+frontend/node_modules/
+frontend/dist/
+frontend/.npm
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/.env.local
+frontend/.env.*.local
+
+# ===================================================================
+# ML (Data / Models / Notebooks)
+# ===================================================================
+ml/**/*.csv
+ml/**/*.parquet
+ml/**/*.onnx
+ml/**/*.pkl
+ml/**/*.pth
+ml/**/*.pt
+ml/.ipynb_checkpoints/
