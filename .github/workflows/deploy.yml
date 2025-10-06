@@ -1,4 +1,4 @@
-name: Build and Deploy 
+name: Build and Deploy Quant System to Azure VM
 
 on:
   push:
@@ -37,6 +37,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./backend
+          file: ./backend/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}/backend:latest
 
@@ -44,6 +45,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./frontend
+          file: ./frontend/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}/frontend:latest
 
@@ -63,19 +65,23 @@ jobs:
       - name: Deploy to Azure VM via SSH
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.AZURE_VM_USERNAME }}@${{ secrets.AZURE_VM_HOST }} << 'EOF'
-            cd ~/qantimizer
+            mkdir -p ~/IntelliQuant-System
+            cd ~/IntelliQuant-System
             
-            echo ">>> Pulling latest source code..."
-            git pull origin main
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }}.git .
+            else
+              git pull origin main
+            fi
             
             echo ">>> Logging in to GHCR..."
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
             
             echo ">>> Pulling latest images from GHCR..."
-            docker-compose pull
+            docker compose pull
             
             echo ">>> Restarting services with new images..."
-            docker-compose up -d
+            docker compose up -d
             
             echo ">>> Pruning old Docker images..."
             docker image prune -f
