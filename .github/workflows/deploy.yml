@@ -92,47 +92,46 @@ jobs:
           fi
 
           echo ">>> Login to GHCR(from runner) & verify tags exist"
-          echo "$GHCR_TOKEN" | docker login $REGISTRY -u "$GHCR_USERNAME" --password-stdin
+          echo "${GHCR_TOKEN}" | docker login "${REGISTRY}" -u "${GHCR_USERNAME}" --password-stdin
 
           for IMG in backend frontend; do
-            REF="$REGISTRY/$OWNER_LC/$IMAGE_NAME/$IMG:$IMAGE_TAG"
-            echo "Checking $REF ..."
-            docker manifest inspect "$REF" >/dev/null 2>&1 || {
-              echo "❌ Not found on GHCR: $REF"; exit 1;
-            }
+            REF="${REGISTRY}/${OWNER_LC}/${IMAGE_NAME}/${IMG}:${IMAGE_TAG}"
+            echo "Checking ${REF} ..."
+            docker manifest inspect "${REF}" >/dev/null 2>&1 || { echo "❌ Not found on GHCR: ${REF}"; exit 1; }
           done
 
-          ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "mkdir -p ~/Quantimizer-System"
-          scp -o StrictHostKeyChecking=no "$SRC_COMPOSE" "$AZ_USER@$AZ_HOST:~/Quantimizer-System/docker-compose.yml"
+          ssh -o StrictHostKeyChecking=no "${AZ_USER}@${AZ_HOST}" "mkdir -p ~/Quantimizer-System"
+          scp -o StrictHostKeyChecking=no "${SRC_COMPOSE}" "${AZ_USER}@${AZ_HOST}:~/Quantimizer-System/docker-compose.yml"
 
-          ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "
-            set -euo pipefail
+          ssh -o StrictHostKeyChecking=no "${AZ_USER}@${AZ_HOST}" bash -s <<EOF
+          set -euo pipefail
 
-            if ! command -v docker >/dev/null 2>&1; then
-              curl -fsSL https://get.docker.com | sh
-              sudo usermod -aG docker \$USER || true
-            fi
-            if ! docker compose version >/dev/null 2>&1;              sudo apt-get update -y && sudo apt-get install -y docker-compose-plugin || true
-            fi
+          if ! command -v docker >/dev/null 2>&1; then
+            curl -fsSL https://get.docker.com | sh
+            sudo usermod -aG docker \$USER || true
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            sudo apt-get update -y && sudo apt-get install -y docker-compose-plugin || true
+          fi
 
-            cd ~/Quantimizer-System
-            export REGISTRY='$REGISTRY'
-            export IMAGE_NS='$OWNER_LC'
-            export IMAGE_NAME='$IMAGE_NAME'
-            export IMAGE_TAG='$IMAGE_TAG'
+          cd ~/Quantimizer-System
 
-            echo '>>> Login to GHCR(from VM)'
-            echo '$GHCR_TOKEN' | docker login $REGISTRY -u '$GHCR_USERNAME' --password-stdin
+          export REGISTRY="${REGISTRY}"
+          export IMAGE_NS="${OWNER_LC}"
+          export IMAGE_NAME="${IMAGE_NAME}"
+          export IMAGE_TAG="${IMAGE_TAG}"
 
-            echo '>>> Pull'
-            docker compose -f docker-compose.yml pull
+          echo ">>> Login to GHCR(from VM)"
+          echo "${GHCR_TOKEN}" | docker login "${REGISTRY}" -u "${GHCR_USERNAME}" --password-stdin
 
-            echo '>>> Up'
-            docker compose -f docker-compose.yml up -d
+          echo ">>> Pull"
+          docker compose -f docker-compose.yml pull
 
-            echo '>>> Prune (non-fatal)'
-            docker image prune -f || true
+          echo ">>> Up"
+          docker compose -f docker-compose.yml up -d
 
-            echo '✅ Deployment done'
-          "```
+          echo ">>> Prune (non-fatal)"
+          docker image prune -f || true
 
+          echo "✅ Deployment done"
+          EOF
