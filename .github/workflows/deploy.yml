@@ -2,12 +2,23 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'docker-compose.yml'
-      - '.github/workflows/deploy.yml'
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  ORG: capstone-design-quantimizer
+  REPO: quantimizer-system
+  BACKEND_IMAGE: ghcr.io/capstone-design-quantimizer/quantimizer-system/backend:latest
+  FRONTEND_IMAGE: ghcr.io/capstone-design-quantimizer/quantimizer-system/frontend:latest
 
 jobs:
   build-and-push:
@@ -15,119 +26,88 @@ jobs:
     permissions:
       contents: read
       packages: write
-
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_BACKEND: ghcr.io/capstone-design-quantimizer/quantimizer-system/backend
-      IMAGE_FRONTEND: ghcr.io/capstone-design-quantimizer/quantimizer-system/frontend
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v3
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Build & Push Backend
+      - name: Build and push backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
-          tags: |
-            ${{ env.IMAGE_BACKEND }}:latest
-            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          tags: ${{ env.BACKEND_IMAGE }}
 
-      - name: Move cache (backend)
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-      - name: Build & Push Frontend
+      - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: |
-            ${{ env.IMAGE_FRONTEND }}:latest
-            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          tags: ${{ env.FRONTEND_IMAGE }}
 
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
-    permissions:
-      contents: read
-      packages: read
-
-    env:
-      REGISTRY: ghcr.io
-      VM_HOST: ${{ secrets.AZURE_VM_HOST }}
-      VM_USER: ${{ secrets.AZURE_VM_USERNAME }}
-      VM_WORKDIR: ${{ secrets.AZURE_VM_WORKDIR }}
-      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.AZURE_VM_SSH_KEY }}
-
-      - name: Ensure workdir exists & sync compose to VM
+      - name: Normalize compose image refs
         run: |
-          WORKDIR="${{ env.VM_WORKDIR }}"
-          if [ -z "$WORKDIR" ]; then WORKDIR="$HOME/app"; fi
-          echo "Using VM_WORKDIR=$WORKDIR"
+          sed -i "s|ghcr.io/.*/.*/backend:latest|${BACKEND_IMAGE}|g" docker-compose.yml
+          sed -i "s|ghcr.io/.*/.*/frontend:latest|${FRONTEND_IMAGE}|g" docker-compose.yml
 
-          ssh -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "mkdir -p $WORKDIR"
-
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
-            docker-compose.yml \
-            ${{ env.VM_USER }}@${{ env.VM_HOST }}:$WORKDIR/
-
-
-      - name: Deploy on VM (docker compose pull & up)
+      - name: Prepare SSH key
+        env:
+          SSH_KEY: ${{ secrets.AZURE_VM_SSH_KEY }}
         run: |
-          WORKDIR="${{ env.VM_WORKDIR }}"
-          if [ -z "$WORKDIR" ]; then WORKDIR="$HOME/app"; fi
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
 
-          ssh -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'EOF'
+      - name: Create workdir and copy files
+        env:
+          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          VM_USER: ${{ secrets.AZURE_VM_USERNAME }}
+          VM_WORKDIR: ${{ secrets.AZURE_VM_WORKDIR }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${VM_USER}@${VM_HOST} "mkdir -p ${VM_WORKDIR} && mkdir -p ${VM_WORKDIR}/backend"
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no docker-compose.yml ${VM_USER}@${VM_HOST}:${VM_WORKDIR}/docker-compose.yml
+          if [ -f backend/.env ]; then
+            scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no backend/.env ${VM_USER}@${VM_HOST}:${VM_WORKDIR}/backend/.env
+          fi
+
+      - name: Deploy on VM
+        env:
+          VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          VM_USER: ${{ secrets.AZURE_VM_USERNAME }}
+          VM_WORKDIR: ${{ secrets.AZURE_VM_WORKDIR }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${VM_USER}@${VM_HOST} << 'EOF'
           set -euo pipefail
-          WORKDIR="${WORKDIR:-$HOME/app}"
-          cd "$WORKDIR"
-
-          echo ">>> Login to GHCR on VM"
-          echo "${GHCR_TOKEN}" | docker login "${REGISTRY}" -u "${GHCR_USERNAME}" --password-stdin
-
-          echo ">>> Pull images defined in docker-compose.yml"
-          docker compose -f docker-compose.yml pull
-
-          echo ">>> Up containers"
-          docker compose -f docker-compose.yml up -d
-
-          echo ">>> Prune dangling images (non-fatal)"
+          if ! command -v docker >/dev/null 2>&1; then
+            curl -fsSL https://get.docker.com | sh
+            sudo usermod -aG docker $USER || true
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y docker-compose-plugin || true
+          fi
+          echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+          cd "${VM_WORKDIR}"
+          if grep -q "^version:" docker-compose.yml; then
+            sed -i '/^version:/d' docker-compose.yml
+          fi
+          docker compose pull
+          docker compose up -d
           docker image prune -f || true
-
-          echo "✅ Deployment done"
           EOF
