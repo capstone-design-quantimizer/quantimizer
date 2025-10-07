@@ -1,8 +1,7 @@
-version: '3.8'
-
 services:
   backend:
-    image: ghcr.io/quantimizer-org/quantimizer-sysytem/backend:latest
+    # 'sysytem' -> 'system' 으로 오타 수정
+    image: ghcr.io/quantimizer-org/quantimizer-system/backend:latest
     container_name: quant-backend
     restart: always
     env_file:
