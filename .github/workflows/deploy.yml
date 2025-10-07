@@ -28,6 +28,9 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Set up QEMU for multi-platform build
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -37,6 +40,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}/backend:latest
 
       - name: Build and push Frontend image
@@ -45,6 +49,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}/frontend:latest
 
   deploy:
@@ -107,8 +112,7 @@ jobs:
               curl -fsSL https://get.docker.com | sh
               sudo usermod -aG docker \$USER || true
             fi
-            if ! docker compose version >/dev/null 2>&1; then
-              sudo apt-get update -y && sudo apt-get install -y docker-compose-plugin || true
+            if ! docker compose version >/dev/null 2>&1;              sudo apt-get update -y && sudo apt-get install -y docker-compose-plugin || true
             fi
 
             cd ~/Quantimizer-System
@@ -130,4 +134,5 @@ jobs:
             docker image prune -f || true
 
             echo '✅ Deployment done'
-          "
+          "```
+
