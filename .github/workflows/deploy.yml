@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'docker-compose.yml'
       - '.github/workflows/deploy.yml'
 
 jobs:
@@ -14,43 +15,60 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_BACKEND: ghcr.io/quantimizer-org/quantimizer-system/backend
+      IMAGE_FRONTEND: ghcr.io/quantimizer-org/quantimizer-system/frontend
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set owner to lowercase
-        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Set up QEMU for multi-platform build
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Backend image
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build & Push Backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          file: ./backend/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}/backend:latest
+          tags: |
+            ${{ env.IMAGE_BACKEND }}:latest
+            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
-      - name: Build and push Frontend image
+      - name: Move cache (backend)
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Build & Push Frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
-          file: ./frontend/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}/frontend:latest
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
   deploy:
     runs-on: ubuntu-latest
@@ -58,79 +76,57 @@ jobs:
     permissions:
       contents: read
       packages: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Set owner to lowercase
-        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+    env:
+      REGISTRY: ghcr.io
+      VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+      VM_USER: ${{ secrets.AZURE_VM_USERNAME }}
+      VM_WORKDIR: ${{ secrets.AZURE_VM_WORKDIR }}
+      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.AZURE_VM_SSH_KEY }}
 
-      - name: Deploy to Azure VM
-        shell: bash
-        env:
-          AZ_USER: ${{ secrets.AZURE_VM_USERNAME }}
-          AZ_HOST: ${{ secrets.AZURE_VM_HOST }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          REGISTRY: ghcr.io
-          IMAGE_NAME: ${{ github.event.repository.name }}
-          IMAGE_TAG: latest
+      - name: Ensure workdir exists & sync compose to VM
         run: |
+          WORKDIR="${{ env.VM_WORKDIR }}"
+          if [ -z "$WORKDIR" ]; then WORKDIR="$HOME/app"; fi
+          echo "Using VM_WORKDIR=$WORKDIR"
+
+          ssh -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} "mkdir -p $WORKDIR"
+
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+            docker-compose.yml \
+            ${{ env.VM_USER }}@${{ env.VM_HOST }}:$WORKDIR/
+
+
+      - name: Deploy on VM (docker compose pull & up)
+        run: |
+          WORKDIR="${{ env.VM_WORKDIR }}"
+          if [ -z "$WORKDIR" ]; then WORKDIR="$HOME/app"; fi
+
+          ssh -o StrictHostKeyChecking=no ${{ env.VM_USER }}@${{ env.VM_HOST }} << 'EOF'
           set -euo pipefail
+          WORKDIR="${WORKDIR:-$HOME/app}"
+          cd "$WORKDIR"
 
-          if [[ -f "$GITHUB_WORKSPACE/docker-compose.yml" ]]; then
-            SRC_COMPOSE="$GITHUB_WORKSPACE/docker-compose.yml"
-          elif [[ -f "$GITHUB_WORKSPACE/deploy/docker-compose.yml" ]]; then
-            SRC_COMPOSE="$GITHUB_WORKSPACE/deploy/docker-compose.yml"
-          else
-            echo "❌ docker-compose.yml not found"; exit 1
-          fi
-
-          echo ">>> Login to GHCR(from runner) & verify tags exist"
+          echo ">>> Login to GHCR on VM"
           echo "${GHCR_TOKEN}" | docker login "${REGISTRY}" -u "${GHCR_USERNAME}" --password-stdin
 
-          for IMG in backend frontend; do
-            REF="${REGISTRY}/${OWNER_LC}/${IMAGE_NAME}/${IMG}:${IMAGE_TAG}"
-            echo "Checking ${REF} ..."
-            docker manifest inspect "${REF}" >/dev/null 2>&1 || { echo "❌ Not found on GHCR: ${REF}"; exit 1; }
-          done
-
-          ssh -o StrictHostKeyChecking=no "${AZ_USER}@${AZ_HOST}" "mkdir -p ~/Quantimizer-System"
-          scp -o StrictHostKeyChecking=no "${SRC_COMPOSE}" "${AZ_USER}@${AZ_HOST}:~/Quantimizer-System/docker-compose.yml"
-
-          ssh -o StrictHostKeyChecking=no "${AZ_USER}@${AZ_HOST}" bash -s <<EOF
-          set -euo pipefail
-
-          if ! command -v docker >/dev/null 2>&1; then
-            curl -fsSL https://get.docker.com | sh
-            sudo usermod -aG docker \$USER || true
-          fi
-          if ! docker compose version >/dev/null 2>&1; then
-            sudo apt-get update -y && sudo apt-get install -y docker-compose-plugin || true
-          fi
-
-          cd ~/Quantimizer-System
-
-          export REGISTRY="${REGISTRY}"
-          export IMAGE_NS="${OWNER_LC}"
-          export IMAGE_NAME="${IMAGE_NAME}"
-          export IMAGE_TAG="${IMAGE_TAG}"
-
-          echo ">>> Login to GHCR(from VM)"
-          echo "${GHCR_TOKEN}" | docker login "${REGISTRY}" -u "${GHCR_USERNAME}" --password-stdin
-
-          echo ">>> Pull"
+          echo ">>> Pull images defined in docker-compose.yml"
           docker compose -f docker-compose.yml pull
 
-          echo ">>> Up"
+          echo ">>> Up containers"
           docker compose -f docker-compose.yml up -d
 
-          echo ">>> Prune (non-fatal)"
+          echo ">>> Prune dangling images (non-fatal)"
           docker image prune -f || true
 
           echo "✅ Deployment done"
