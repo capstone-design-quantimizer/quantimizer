@@ -1,7 +1,6 @@
 services:
   backend:
-    # 'sysytem' -> 'system' 으로 오타 수정
-    image: ghcr.io/quantimizer-org/quantimizer-system/backend:latest
+    image: ghcr.io/capstone-design-quantimizer/quantimizer-system/backend:latest
     container_name: quant-backend
     restart: always
     env_file:
@@ -10,7 +9,7 @@ services:
       - "8000:8000"
 
   frontend:
-    image: ghcr.io/quantimizer-org/quantimizer-system/frontend:latest
+    image: ghcr.io/capstone-design-quantimizer/quantimizer-system/frontend:latest
     container_name: quant-frontend
     restart: always
     ports:

@@ -18,8 +18,8 @@ jobs:
 
     env:
       REGISTRY: ghcr.io
-      IMAGE_BACKEND: ghcr.io/quantimizer-org/quantimizer-system/backend
-      IMAGE_FRONTEND: ghcr.io/quantimizer-org/quantimizer-system/frontend
+      IMAGE_BACKEND: ghcr.io/capstone-design-quantimizer/quantimizer-system/backend
+      IMAGE_FRONTEND: ghcr.io/capstone-design-quantimizer/quantimizer-system/frontend
 
     steps:
       - name: Checkout
