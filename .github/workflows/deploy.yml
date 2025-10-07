@@ -18,6 +18,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set owner to lowercase
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -34,7 +37,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}/backend:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}/backend:latest
 
       - name: Build and push Frontend image
         uses: docker/build-push-action@v6
@@ -42,7 +45,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}/frontend:latest
+          tags: ghcr.io/${{ env.OWNER_LC }}/${{ github.event.repository.name }}/frontend:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -50,14 +53,12 @@ jobs:
     permissions:
       contents: read
       packages: read
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NS: ${{ github.repository_owner }}
-      IMAGE_NAME: ${{ github.event.repository.name }}
-      IMAGE_TAG: latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set owner to lowercase
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -71,6 +72,9 @@ jobs:
           AZ_HOST: ${{ secrets.AZURE_VM_HOST }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.event.repository.name }}
+          IMAGE_TAG: latest
         run: |
           set -euo pipefail
 
@@ -86,7 +90,7 @@ jobs:
           echo "$GHCR_TOKEN" | docker login $REGISTRY -u "$GHCR_USERNAME" --password-stdin
 
           for IMG in backend frontend; do
-            REF="$REGISTRY/$IMAGE_NS/$IMAGE_NAME/$IMG:$IMAGE_TAG"
+            REF="$REGISTRY/$OWNER_LC/$IMAGE_NAME/$IMG:$IMAGE_TAG"
             echo "Checking $REF ..."
             docker manifest inspect "$REF" >/dev/null 2>&1 || {
               echo "❌ Not found on GHCR: $REF"; exit 1;
@@ -109,7 +113,7 @@ jobs:
 
             cd ~/Quantimizer-System
             export REGISTRY='$REGISTRY'
-            export IMAGE_NS='$IMAGE_NS'
+            export IMAGE_NS='$OWNER_LC'
             export IMAGE_NAME='$IMAGE_NAME'
             export IMAGE_TAG='$IMAGE_TAG'
 
