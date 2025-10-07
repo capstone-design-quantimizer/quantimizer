@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -50,6 +50,11 @@ jobs:
     permissions:
       contents: read
       packages: read
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NS: ${{ github.repository_owner }}
+      IMAGE_NAME: ${{ github.event.repository.name }}
+      IMAGE_TAG: latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,63 +69,61 @@ jobs:
         env:
           AZ_USER: ${{ secrets.AZURE_VM_USERNAME }}
           AZ_HOST: ${{ secrets.AZURE_VM_HOST }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           set -euo pipefail
-
-          echo ">>> Workspace: $GITHUB_WORKSPACE"
-          ls -al "$GITHUB_WORKSPACE" || true
 
           if [[ -f "$GITHUB_WORKSPACE/docker-compose.yml" ]]; then
             SRC_COMPOSE="$GITHUB_WORKSPACE/docker-compose.yml"
           elif [[ -f "$GITHUB_WORKSPACE/deploy/docker-compose.yml" ]]; then
             SRC_COMPOSE="$GITHUB_WORKSPACE/deploy/docker-compose.yml"
           else
-            echo "❌ docker-compose.yml not found in repo root or deploy/."
-            exit 1
+            echo "❌ docker-compose.yml not found"; exit 1
           fi
 
-          echo ">>> Using compose file: $SRC_COMPOSE"
+          echo ">>> Login to GHCR(from runner) & verify tags exist"
+          echo "$GHCR_TOKEN" | docker login $REGISTRY -u "$GHCR_USERNAME" --password-stdin
+
+          for IMG in backend frontend; do
+            REF="$REGISTRY/$IMAGE_NS/$IMAGE_NAME/$IMG:$IMAGE_TAG"
+            echo "Checking $REF ..."
+            docker manifest inspect "$REF" >/dev/null 2>&1 || {
+              echo "❌ Not found on GHCR: $REF"; exit 1;
+            }
+          done
 
           ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "mkdir -p ~/Quantimizer-System"
-
           scp -o StrictHostKeyChecking=no "$SRC_COMPOSE" "$AZ_USER@$AZ_HOST:~/Quantimizer-System/docker-compose.yml"
 
           ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "
             set -euo pipefail
 
             if ! command -v docker >/dev/null 2>&1; then
-              echo '>>> Installing Docker...'
               curl -fsSL https://get.docker.com | sh
               sudo usermod -aG docker \$USER || true
             fi
-
             if ! docker compose version >/dev/null 2>&1; then
-              echo '>>> Installing compose-plugin...'
-              sudo apt-get update -y
-              sudo apt-get install -y docker-compose-plugin || true
+              sudo apt-get update -y && sudo apt-get install -y docker-compose-plugin || true
             fi
 
-            echo '>>> Docker info:'
-            docker --version || true
-            docker compose version || true
-          "
-          ssh -o StrictHostKeyChecking=no "$AZ_USER@$AZ_HOST" "
-            set -euo pipefail
             cd ~/Quantimizer-System
+            export REGISTRY='$REGISTRY'
+            export IMAGE_NS='$IMAGE_NS'
+            export IMAGE_NAME='$IMAGE_NAME'
+            export IMAGE_TAG='$IMAGE_TAG'
 
-            echo '>>> Logging in to GHCR...'
-            echo '$GHCR_TOKEN' | docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin
+            echo '>>> Login to GHCR(from VM)'
+            echo '$GHCR_TOKEN' | docker login $REGISTRY -u '$GHCR_USERNAME' --password-stdin
 
-            echo '>>> Pulling latest images...'
+            echo '>>> Pull'
             docker compose -f docker-compose.yml pull
 
-            echo '>>> Restarting services...'
+            echo '>>> Up'
             docker compose -f docker-compose.yml up -d
 
-            echo '>>> Pruning old images...'
+            echo '>>> Prune (non-fatal)'
             docker image prune -f || true
 
-            echo '✅ Deployment finished.'
+            echo '✅ Deployment done'
           "
