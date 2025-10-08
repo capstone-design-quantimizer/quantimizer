@@ -64,6 +64,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+      - name: Generate backend .env dynamically
+        run: |
+          mkdir -p backend
+          cat <<EOF > backend/.env
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          EOF
       - name: Create workdir and copy files
         env:
           VM_HOST: ${{ secrets.AZURE_VM_HOST }}
