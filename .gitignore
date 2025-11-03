@@ -18,6 +18,11 @@ backend/venv/
 backend/.env
 backend/.env.*
 backend/.pytest_cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 
 # ===================================================================
 # Frontend (Node.js / React / Vite)

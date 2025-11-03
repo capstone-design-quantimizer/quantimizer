@@ -1,4 +1,5 @@
 from __future__ import annotations
+from fastapi import FastAPI
 
 from app.core.config import get_settings
 from app.db.session import Base, engine
