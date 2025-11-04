@@ -8,9 +8,15 @@ from sqlalchemy.orm import Session
 from app.models.strategy import Strategy
 from app.schemas.strategy import StrategyCreate, StrategyUpdate
 from app.utils.pagination import paginate
+from app.services.strategy_execution import parse_strategy, StrategyExecutionError
 
 
 def create_strategy(db: Session, owner_id: uuid.UUID, strategy_in: StrategyCreate) -> Strategy:
+    try:
+        parse_strategy(strategy_in.strategy_json)
+    except StrategyExecutionError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
     strategy = Strategy(
         owner_id=owner_id,
         name=strategy_in.name,
@@ -45,6 +51,10 @@ def update_strategy(
     if strategy_in.description is not None:
         strategy.description = strategy_in.description
     if strategy_in.strategy_json is not None:
+        try:
+            parse_strategy(strategy_in.strategy_json)
+        except StrategyExecutionError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
         strategy.strategy_json = strategy_in.strategy_json
 
     db.commit()
