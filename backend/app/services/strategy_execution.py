@@ -97,7 +97,9 @@ class _EquityReplayStrategy(BTStrategy):
 
 # ---------- Parse ----------
 def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
-    uni = strategy_json.get("universe") or {}
+    definition = strategy_json.get("definition", strategy_json)
+
+    uni = definition.get("universe") or {}
     market = str(uni.get("market", "ALL")).upper()
     if market not in VALID_MARKETS:
         raise StrategyExecutionError(f"Unsupported market '{market}'")
@@ -117,7 +119,7 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
     if not isinstance(exclude_tickers, Iterable) or isinstance(exclude_tickers, (str, bytes)):
         raise StrategyExecutionError("universe.exclude_tickers must be a list")
 
-    facs_raw = strategy_json.get("factors") or []
+    facs_raw = definition.get("factors") or []
     if not facs_raw:
         raise StrategyExecutionError("At least one factor must be supplied")
 
@@ -148,7 +150,7 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
 
         facs.append(FactorSpec(name=name, direction=direction, weight=weight, model_id=model_id))
 
-    port = strategy_json.get("portfolio") or {}
+    port = definition.get("portfolio") or {}
     top_n = int(port.get("top_n", 30))
     if top_n <= 0:
         raise StrategyExecutionError("portfolio.top_n must be positive")
@@ -156,7 +158,7 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
     if weight_method not in VALID_WEIGHT_METHODS:
         raise StrategyExecutionError(f"Unsupported weight method '{weight_method}'")
 
-    reb = strategy_json.get("rebalancing") or {}
+    reb = definition.get("rebalancing") or {}
     freq = str(reb.get("frequency", "monthly")).lower()
     if freq not in VALID_FREQUENCIES:
         raise StrategyExecutionError(f"Unsupported rebalancing frequency '{freq}'")
