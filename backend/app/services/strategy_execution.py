@@ -97,6 +97,7 @@ class _EquityReplayStrategy(BTStrategy):
 
 # ---------- Parse ----------
 def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
+    print("Parsing strategy JSON: %s", strategy_json)
     definition = strategy_json.get("definition", strategy_json)
 
     uni = definition.get("universe") or {}
