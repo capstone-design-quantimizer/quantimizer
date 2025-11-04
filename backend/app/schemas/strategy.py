@@ -14,15 +14,37 @@ class StrategyBase(BaseModel):
 
     @field_validator("strategy_json")
     @classmethod
-    def validate_strategy_json(cls, v: Dict[str, Any]):
-        try:
-            factors = v.get("definition", {}).get("factors", [])
-            if not factors:
-                raise ValueError("At least one factor must be supplied")
-        except Exception:
-            raise ValueError("Strategy JSON must include 'definition.factors' with at least one factor")
-        return v
+    def validate_strategy_json(cls, v: dict):
+        # flat or nested both supported
+        if "definition" in v and isinstance(v["definition"], dict):
+            d = v["definition"]
+        else:
+            d = v
+            v = {"definition": dict(v)}  # canonicalize
 
+        # normalize factors
+        factors = d.get("factors", [])
+        if not isinstance(factors, list) or len(factors) == 0:
+            raise ValueError("At least one factor must be supplied")
+        normalized = []
+        for f in factors:
+            f2 = dict(f)
+            if "type" not in f2 and "name" in f2:
+                f2["type"] = f2.pop("name")
+            if "order" not in f2 and "direction" in f2:
+                f2["order"] = f2.pop("direction")
+            f2.setdefault("weight", 1.0)
+            f2.setdefault("order", "desc")
+            if f2["order"] not in ("asc", "desc"):
+                raise ValueError("factor.order must be 'asc' or 'desc'")
+            normalized.append(f2)
+        v["definition"]["factors"] = normalized
+
+        # carry over other blocks if present
+        for key in ("universe", "portfolio", "rebalancing"):
+            if key not in v["definition"] and key in d:
+                v["definition"][key] = d[key]
+        return v
 
 class StrategyCreate(StrategyBase):
     pass
