@@ -1,63 +1,93 @@
-import { useMemo, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import './App.css'
 
 type PageKey = 'dashboard' | 'builder' | 'backtests' | 'strategies' | 'models' | 'community' | 'settings'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link'
 
-interface BacktestStats {
-  [key: string]: number
+type AuthTokens = {
+  accessToken: string
+  refreshToken: string
+}
+
+interface Strategy {
+  id: string
+  owner_id: string
+  name: string
+  description: string | null
+  strategy_json: Record<string, unknown>
+  created_at: string
+  updated_at: string
 }
 
 interface EquityPoint {
   date: string
   equity: number
-  drawdown: number
+  drawdown?: number
 }
 
-interface BacktestResult {
-  stats: BacktestStats
-  equityCurve: EquityPoint[]
-}
-
-interface BacktestSummary {
+interface Backtest {
   id: string
-  strategy: string
-  start: string
-  end: string
-  cagr: number
-  mdd: number
-  sharpe: number
+  strategy_id: string
+  start_date: string
+  end_date: string
+  initial_capital: number
+  ml_model_id: string | null
+  equity_curve: EquityPoint[]
+  metrics: Record<string, number>
+  created_at: string
 }
 
-interface StrategyItem {
+interface MLModelItem {
   id: string
   name: string
-  updated: string
-  tags: string[]
-  ytd: number
+  created_at: string
 }
 
-interface ModelItem {
+interface CommunityFeedItem {
   id: string
-  name: string
-  version: string
-  framework: string
-  created: string
-  input: string
+  title: string
+  content: string
+  created_at: string
+  author_username: string
+  strategy: Record<string, unknown>
 }
 
-interface CommunityItem {
-  id: string
-  name: string
-  author: string
-  ytd: number
-  stars: number
-  forks: number
-  tags: string[]
-  code: string
-  json: Record<string, unknown>
+interface StrategyListResponse {
+  total: number
+  items: Strategy[]
 }
+
+interface BacktestListResponse {
+  total: number
+  items: Backtest[]
+}
+
+interface ModelListResponse {
+  items: MLModelItem[]
+}
+
+interface CommunityListResponse {
+  items: CommunityFeedItem[]
+}
+
+interface TokenResponse {
+  access_token: string
+  refresh_token: string
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
+const TOKEN_STORAGE_KEY = 'quantimizer.tokens'
 
 const ICONS: Record<string, string> = {
   home: '🏠',
@@ -170,92 +200,116 @@ const Modal = ({ open, onClose, title, children }: { open: boolean; onClose: () 
   )
 }
 
-const sampleBacktestResult: BacktestResult = (() => {
-  const stats: BacktestStats = {
-    'Return (Ann.) [%]': 11.0,
-    'Volatility (Ann.) [%]': 15.2,
-    'Sharpe Ratio': 0.72,
-    'Max. Drawdown [%]': -22.8,
-    'Calmar Ratio': 0.48,
-    'Win Rate [%]': 54.2,
-    'Return [%]': 184.5,
-    'Buy & Hold Return [%]': 121.3,
-    '# Trades': 120,
-  }
-
-  const equityCurve: EquityPoint[] = Array.from({ length: 120 }, (_, index) => {
-    const equity = 10_000_000 * (1 + index * 0.006 + Math.sin(index / 10) * 0.05)
-    const drawdown = -Math.abs(Math.sin(index / 6) * 10)
-    const start = new Date('2020-01-01T00:00:00Z')
-    const date = new Date(start.getTime() + index * 7 * 24 * 60 * 60 * 1000)
-    return {
-      date: date.toISOString().slice(0, 10),
-      equity: Number(equity.toFixed(2)),
-      drawdown: Number(drawdown.toFixed(2)),
-    }
-  })
-
-  return { stats, equityCurve }
-})()
-
-const sampleEquitySeries = sampleBacktestResult.equityCurve.slice(0, 60).map((_, index) => ({
-  label: `W${index + 1}`,
-  market: 100 + index * 1.1 + Math.sin(index / 7) * 1.2,
-  kosdaq: 98 + index * 0.9 + Math.cos(index / 5) * 1.1,
-  strategy: 100 + index * 1.5 + Math.sin(index / 3) * 1.4,
-}))
-
-const sampleBacktests: BacktestSummary[] = [
-  { id: 'BT-2025-09-01-001', strategy: 'K-Value+Mom_30', start: '2015-01-01', end: '2025-09-01', cagr: 14.2, mdd: -23.4, sharpe: 0.92 },
-  { id: 'BT-2025-08-15-002', strategy: 'ONNX-Alpha-v1', start: '2018-01-01', end: '2025-08-15', cagr: 11.8, mdd: -21.1, sharpe: 0.81 },
-  { id: 'BT-2025-08-02-003', strategy: 'Momentum_12_6_Top50', start: '2010-01-01', end: '2025-08-02', cagr: 13.0, mdd: -28.9, sharpe: 0.77 },
-]
-
-const sampleStrategies: StrategyItem[] = [
-  { id: 'STR-001', name: 'K-Value+Mom_30', updated: '2025-09-20', tags: ['가치', '모멘텀', '월말'], ytd: 7.8 },
-  { id: 'STR-002', name: 'Momentum_12_6_Top50', updated: '2025-08-02', tags: ['모멘텀'], ytd: 5.1 },
-  { id: 'STR-003', name: 'LowVol_Top40', updated: '2025-07-11', tags: ['저변동성'], ytd: 3.2 },
-]
-
-const sampleModels: ModelItem[] = [
-  { id: 'MDL-ONNX-001', name: 'ONNX-Alpha-v1', version: '1.0.0', framework: 'ONNX', created: '2025-08-10', input: '{f1..f32}→score' },
-  { id: 'MDL-ONNX-002', name: 'ONNX-Beta-v1', version: '0.3.2', framework: 'ONNX', created: '2025-07-30', input: '{value,mom,vol}→score' },
-]
-
-const communityItems: CommunityItem[] = [
-  {
-    id: 'PUB-001',
-    name: 'K-가치+모멘텀(Top30)',
-    author: 'quant_hg',
-    ytd: 8.4,
-    stars: 21,
-    forks: 5,
-    tags: ['가치', '모멘텀'],
-    code: 'rank = 0.5*z(per.asc()) + 0.5*z(mom(252).desc());\nselect_top(30, equal_weight)',
-    json: { strategy: 'K-가치+모멘텀(Top30)', factors: ['PER', 'MOM_12M'], topN: 30, weight: 'equal' },
-  },
-  {
-    id: 'PUB-002',
-    name: '저변동성 Top40',
-    author: 'kim_ml',
-    ytd: 4.3,
-    stars: 13,
-    forks: 2,
-    tags: ['저변동성'],
-    code: 'rank = -z(vol(63));\nselect_top(40)',
-    json: { strategy: '저변동성 Top40', factors: ['VOL_3M'], topN: 40, weight: 'equal' },
-  },
-]
-
 const formatNumber = (value: number) => value.toLocaleString('ko-KR')
 
-const KPI = ({ label, value, sub }: { label: string; value: string | number; sub?: string }) => (
-  <div className="kpi">
-    <span className="kpi__label">{label}</span>
-    <span className="kpi__value">{value}</span>
-    {sub && <span className="kpi__sub">{sub}</span>}
-  </div>
-)
+const formatPercent = (value: number | null | undefined, fractionDigits = 2) => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '-'
+  }
+  return `${(value * 100).toFixed(fractionDigits)}%`
+}
+
+const toDateLabel = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toISOString().slice(0, 10)
+}
+
+const buildDrawdownSeries = (curve: EquityPoint[]): EquityPoint[] => {
+  let peak = Number.NEGATIVE_INFINITY
+  return curve.map((point) => {
+    const equity = Number(point.equity) || 0
+    peak = Math.max(peak, equity)
+    const drawdown = peak > 0 ? equity / peak - 1 : 0
+    return { ...point, equity, drawdown }
+  })
+}
+
+const getStrategyTags = (strategy: Strategy): string[] => {
+  const raw = strategy.strategy_json?.factors
+  if (!Array.isArray(raw)) {
+    return []
+  }
+  const tags = raw
+    .map((item) => {
+      if (item && typeof item === 'object' && 'name' in item) {
+        return String((item as { name: unknown }).name)
+      }
+      return null
+    })
+    .filter((value): value is string => Boolean(value))
+  return Array.from(new Set(tags)).slice(0, 4)
+}
+
+const METRIC_LABELS: Array<{ key: string; label: string; format?: (value: number) => string }> = [
+  { key: 'total_return', label: '누적 수익률', format: (value: number) => formatPercent(value, 2) },
+  { key: 'cagr', label: 'CAGR', format: (value: number) => formatPercent(value, 2) },
+  { key: 'max_drawdown', label: '최대 낙폭', format: (value: number) => formatPercent(value, 2) },
+  { key: 'volatility', label: '연환산 변동성', format: (value: number) => formatPercent(value, 2) },
+  { key: 'sharpe', label: 'Sharpe Ratio', format: (value: number) => value.toFixed(2) },
+]
+
+const AuthForm = ({ onLogin, onRegister, error, loading }: { onLogin: (email: string, password: string) => Promise<void>; onRegister: (email: string, username: string, password: string) => Promise<void>; error: string | null; loading: boolean }) => {
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (loading) return
+
+    if (mode === 'login') {
+      try {
+        await onLogin(email, password)
+      } catch {
+        // 상위 컴포넌트에서 에러를 표시함
+      }
+      return
+    }
+
+    try {
+      await onRegister(email, username, password)
+    } catch {
+      // 상위 컴포넌트에서 에러를 표시함
+    }
+  }
+
+  return (
+    <div className="auth-card">
+      <h1 className="auth-card__title">QuantiMizer</h1>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-form__field">
+          <span>이메일</span>
+          <Input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+        </label>
+        {mode === 'register' && (
+          <label className="auth-form__field">
+            <span>닉네임</span>
+            <Input type="text" required value={username} onChange={(event) => setUsername(event.target.value)} />
+          </label>
+        )}
+        <label className="auth-form__field">
+          <span>비밀번호</span>
+          <Input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} />
+        </label>
+        {error && <div className="alert alert--error auth-form__alert">{ICONS.info} {error}</div>}
+        <Btn type="submit" variant="primary" className="auth-form__submit" disabled={loading}>
+          {loading ? '처리 중…' : mode === 'login' ? '로그인' : '회원가입'}
+        </Btn>
+        <button
+          type="button"
+          className="auth-form__toggle"
+          onClick={() => setMode((prev) => (prev === 'login' ? 'register' : 'login'))}
+        >
+          {mode === 'login' ? '계정이 없으신가요? 회원가입' : '이미 계정이 있으신가요? 로그인'}
+        </button>
+      </form>
+    </div>
+  )
+}
 
 interface SimpleLineChartProps {
   data: Array<{ label: string; [key: string]: number | string }>
@@ -264,7 +318,7 @@ interface SimpleLineChartProps {
 
 const SimpleLineChart = ({ data, series }: SimpleLineChartProps) => {
   const { points, min, max } = useMemo(() => {
-    if (data.length === 0) {
+    if (data.length === 0 || series.length === 0) {
       return { points: [] as Array<{ key: string; value: string }>, min: 0, max: 1 }
     }
 
@@ -277,6 +331,10 @@ const SimpleLineChart = ({ data, series }: SimpleLineChartProps) => {
         }
       })
     })
+
+    if (numericValues.length === 0) {
+      return { points: [], min: 0, max: 1 }
+    }
 
     const minValue = Math.min(...numericValues)
     const maxValue = Math.max(...numericValues)
@@ -322,7 +380,7 @@ const SimpleLineChart = ({ data, series }: SimpleLineChartProps) => {
         ))}
       </div>
       <div className="line-chart__range">
-        범위: {min.toFixed(1)} ~ {max.toFixed(1)}
+        범위: {min.toFixed(2)} ~ {max.toFixed(2)}
       </div>
     </div>
   )
@@ -335,12 +393,12 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
     }
 
     const equityValues = data.map((item) => item.equity)
-    const drawdownValues = data.map((item) => item.drawdown)
+    const drawdownValues = data.map((item) => item.drawdown ?? 0)
     const minEquity = Math.min(...equityValues)
     const maxEquity = Math.max(...equityValues)
-    const minDrawdown = Math.min(...drawdownValues)
+    const minDrawdown = Math.min(...drawdownValues, 0)
     const equityDenominator = maxEquity - minEquity || 1
-    const drawdownDenominator = 0 - minDrawdown || 1
+    const drawdownDenominator = Math.abs(minDrawdown) || 1
 
     const equityPath = data
       .map((item, index) => {
@@ -354,12 +412,13 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
     const areaPoints = data
       .map((item, index) => {
         const x = (index / Math.max(1, data.length - 1)) * 100
-        const normalized = (item.drawdown - minDrawdown) / drawdownDenominator
+        const normalized = Math.abs(item.drawdown ?? 0) / drawdownDenominator
         const y = 100 - normalized * 100
         return `${x.toFixed(2)},${y.toFixed(2)}`
       })
+      .join(' ')
 
-    const drawdownPath = `0,100 ${areaPoints.join(' ')} 100,100`
+    const drawdownPath = `0,100 ${areaPoints} 100,100`
 
     return { equity: equityPath, drawdown: drawdownPath }
   }, [data])
@@ -375,23 +434,38 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
       </svg>
       <div className="equity-chart__footer">
         <span className="equity-chart__label">최근 기준일</span>
-        <span className="equity-chart__value">{latest ? `${latest.date} · ₩${formatNumber(latest.equity)}` : '-'}</span>
+        <span className="equity-chart__value">{latest ? `${toDateLabel(latest.date)} · ₩${formatNumber(latest.equity)}` : '-'}</span>
       </div>
     </div>
   )
 }
 
-const PerformanceReport = ({ result }: { result: BacktestResult }) => {
-  const entries = useMemo(() => Object.entries(result.stats) as Array<[string, number]>, [result.stats])
+const PerformanceReport = ({ result }: { result: Backtest }) => {
+  const curve = useMemo(() => buildDrawdownSeries(result.equity_curve ?? []), [result.equity_curve])
+  const entries = useMemo(
+    () =>
+      METRIC_LABELS.map((item) => {
+        const raw = result.metrics?.[item.key]
+        if (raw === undefined || raw === null) {
+          return { label: item.label, value: '-' }
+        }
+        const numeric = typeof raw === 'number' ? raw : Number(raw)
+        if (!Number.isFinite(numeric)) {
+          return { label: item.label, value: '-' }
+        }
+        return { label: item.label, value: item.format ? item.format(numeric) : numeric }
+      }),
+    [result.metrics],
+  )
 
   return (
     <div className="performance">
-      <EquityChart data={result.equityCurve} />
+      <EquityChart data={curve} />
       <div className="performance__stats">
-        {entries.map(([label, value]) => (
-          <div key={label} className="performance__stat">
-            <span className="performance__stat-label">{label}</span>
-            <span className="performance__stat-value">{value}</span>
+        {entries.map((item) => (
+          <div key={item.label} className="performance__stat">
+            <span className="performance__stat-label">{item.label}</span>
+            <span className="performance__stat-value">{item.value}</span>
           </div>
         ))}
       </div>
@@ -399,62 +473,105 @@ const PerformanceReport = ({ result }: { result: BacktestResult }) => {
   )
 }
 
-const Dashboard = ({ onOpenBacktest }: { onOpenBacktest: (item: BacktestSummary) => void }) => (
-  <div className="page-section">
-    <div className="kpi-grid">
-      <KPI label="내 전략" value={sampleStrategies.length} sub="최근 업데이트 기준" />
-      <KPI label="최근 백테스트" value={sampleBacktests[0].id} sub={sampleBacktests[0].strategy} />
-      <KPI label="대표 전략 YTD" value="+7.8%" />
-      <KPI label="등록 모델" value={sampleModels.length} sub="ONNX 권장" />
-    </div>
+const Dashboard = ({ strategies, backtests, models, onOpenBacktest }: { strategies: Strategy[]; backtests: Backtest[]; models: MLModelItem[]; onOpenBacktest: (item: Backtest) => void }) => {
+  const strategyMap = useMemo(() => new Map(strategies.map((item) => [item.id, item])), [strategies])
+  const sortedBacktests = useMemo(() => {
+    return [...backtests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }, [backtests])
+  const latestBacktest = sortedBacktests[0]
 
-    <Card title="대표 전략 에쿼티 커브" icon={ICONS.chart}>
-      <SimpleLineChart
-        data={sampleEquitySeries}
-        series={[
-          { key: 'strategy', color: '#2563eb', label: 'Strategy' },
-          { key: 'market', color: '#1d4ed8', label: 'KOSPI' },
-          { key: 'kosdaq', color: '#4b5563', label: 'KOSDAQ' },
-        ]}
-      />
-    </Card>
+  const chartData = useMemo(() => {
+    if (!latestBacktest || !latestBacktest.equity_curve?.length) {
+      return []
+    }
+    const base = latestBacktest.equity_curve[0]?.equity ?? 1
+    if (!base) {
+      return []
+    }
+    return latestBacktest.equity_curve.map((point) => ({
+      label: toDateLabel(point.date),
+      strategy: (point.equity / base) * 100,
+    }))
+  }, [latestBacktest])
 
-    <Card title="최근 백테스트" icon={ICONS.beaker}>
-      <div className="table-wrapper">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Run ID</th>
-              <th>전략</th>
-              <th>기간</th>
-              <th>CAGR</th>
-              <th>MDD</th>
-              <th>Sharpe</th>
-              <th>보기</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sampleBacktests.map((item) => (
-              <tr key={item.id}>
-                <td className="mono">{item.id}</td>
-                <td>{item.strategy}</td>
-                <td>
-                  {item.start} ~ {item.end}
-                </td>
-                <td>{item.cagr}%</td>
-                <td>{item.mdd}%</td>
-                <td>{item.sharpe}</td>
-                <td>
-                  <Btn variant="ghost" onClick={() => onOpenBacktest(item)}>
-                    상세
-                  </Btn>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+  const strategyName = latestBacktest ? strategyMap.get(latestBacktest.strategy_id)?.name ?? '-' : '-'
+  const kpiBacktest = latestBacktest ? `${latestBacktest.id}` : '-'
+  const kpiStrategy = latestBacktest ? strategyName : '-'
+  const ytd = latestBacktest?.metrics?.total_return
+
+  return (
+    <div className="page-section">
+      <div className="kpi-grid">
+        <KPI label="내 전략" value={strategies.length} sub="등록된 전략 수" />
+        <KPI label="최근 백테스트" value={kpiBacktest} sub={kpiStrategy} />
+        <KPI label="대표 전략 누적 수익률" value={latestBacktest ? formatPercent(ytd ?? null) : '-'} />
+        <KPI label="등록 모델" value={models.length} sub="ONNX 추천" />
       </div>
-    </Card>
+
+      <Card title="대표 전략 에쿼티 커브" icon={ICONS.chart}>
+        {chartData.length > 0 ? (
+          <SimpleLineChart
+            data={chartData}
+            series={[
+              { key: 'strategy', color: '#2563eb', label: 'Strategy' },
+            ]}
+          />
+        ) : (
+          <div className="placeholder">
+            <div className="placeholder__icon">{ICONS.chart}</div>
+            <p className="placeholder__text">최근 백테스트 결과가 없습니다.</p>
+          </div>
+        )}
+      </Card>
+
+      <Card title="최근 백테스트" icon={ICONS.beaker}>
+        <div className="table-wrapper">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>전략</th>
+                <th>기간</th>
+                <th>CAGR</th>
+                <th>MDD</th>
+                <th>Sharpe</th>
+                <th>보기</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedBacktests.slice(0, 5).map((item) => {
+                const strategy = strategyMap.get(item.strategy_id)
+                return (
+                  <tr key={item.id}>
+                    <td className="mono">{item.id}</td>
+                    <td>{strategy?.name ?? '-'}</td>
+                    <td>
+                      {toDateLabel(item.start_date)} ~ {toDateLabel(item.end_date)}
+                    </td>
+                    <td>{formatPercent(item.metrics?.cagr ?? null)}</td>
+                    <td>{formatPercent(item.metrics?.max_drawdown ?? null)}</td>
+                    <td>{typeof item.metrics?.sharpe === 'number' ? item.metrics.sharpe.toFixed(2) : '-'}</td>
+                    <td>
+                      <Btn variant="ghost" onClick={() => onOpenBacktest(item)}>
+                        상세
+                      </Btn>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+const KPI = ({ label, value, sub }: { label: string; value: string | number; sub?: string }) => (
+  <div className="kpi">
+    <span className="kpi__label">{label}</span>
+    <span className="kpi__value">{value}</span>
+    {sub && <span className="kpi__sub">{sub}</span>}
   </div>
 )
 
@@ -477,37 +594,62 @@ const BlocklyPlaceholder = () => (
   </div>
 )
 
-const StrategyBuilder = () => {
-  const [start, setStart] = useState('2015-01-01')
-  const [end, setEnd] = useState('2025-09-01')
-  const [capital, setCapital] = useState(10_000_000)
-  const [market, setMarket] = useState('KOSPI')
-  const [model, setModel] = useState('')
-  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null)
+const StrategyBuilder = ({ strategies, models, onRunBacktest }: { strategies: Strategy[]; models: MLModelItem[]; onRunBacktest: (params: { strategyId: string; startDate: string; endDate: string; initialCapital: number; mlModelId: string | null }) => Promise<Backtest> }) => {
+  const [strategyId, setStrategyId] = useState<string>('')
+  const [start, setStart] = useState<string>(() => new Date(new Date().setFullYear(new Date().getFullYear() - 5)).toISOString().slice(0, 10))
+  const [end, setEnd] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [capital, setCapital] = useState<number>(10_000_000)
+  const [modelId, setModelId] = useState<string>('')
+  const [result, setResult] = useState<Backtest | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const onnxModels = useMemo(() => sampleModels.filter((item) => item.framework === 'ONNX'), [])
+  useEffect(() => {
+    if (strategies.length > 0 && !strategies.some((item) => item.id === strategyId)) {
+      setStrategyId(strategies[0]?.id ?? '')
+    }
+  }, [strategies, strategyId])
+
+  const selectedStrategy = useMemo(() => strategies.find((item) => item.id === strategyId) ?? null, [strategies, strategyId])
 
   const handleCapitalChange = (event: ChangeEvent<HTMLInputElement>) => {
     const next = Number(event.target.value)
     setCapital(Number.isFinite(next) ? next : 0)
   }
 
+  const handleExport = () => {
+    if (!selectedStrategy) {
+      return
+    }
+    const blob = new Blob([JSON.stringify(selectedStrategy.strategy_json, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${selectedStrategy.name.replace(/\s+/g, '_')}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   const runBacktest = async () => {
+    if (!strategyId) {
+      setError('실행할 전략을 선택하세요.')
+      return
+    }
     setIsRunning(true)
     setError(null)
-
     try {
-      const response = await fetch('/api/backtest/mock')
-      if (!response.ok) {
-        throw new Error(`요청이 실패했습니다. (${response.status})`)
-      }
-
-      const data = (await response.json()) as BacktestResult
-      setBacktestResult(data)
-    } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : '알 수 없는 오류가 발생했습니다.')
+      const data = await onRunBacktest({
+        strategyId,
+        startDate: start,
+        endDate: end,
+        initialCapital: capital,
+        mlModelId: modelId || null,
+      })
+      setResult(data)
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : '백테스트 실행 중 문제가 발생했습니다.')
     } finally {
       setIsRunning(false)
     }
@@ -521,6 +663,14 @@ const StrategyBuilder = () => {
         <div className="builder-controls">
           <div className="builder-fields">
             <label className="builder-field">
+              <span>전략</span>
+              <Select
+                value={strategyId}
+                onChange={setStrategyId}
+                options={strategies.length > 0 ? strategies.map((item) => ({ label: item.name, value: item.id })) : [{ label: '등록된 전략이 없습니다', value: '' }]}
+              />
+            </label>
+            <label className="builder-field">
               <span>시작일</span>
               <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
             </label>
@@ -533,33 +683,21 @@ const StrategyBuilder = () => {
               <Input type="number" value={capital} onChange={handleCapitalChange} />
             </label>
             <label className="builder-field">
-              <span>시장</span>
-              <Select
-                value={market}
-                onChange={setMarket}
-                options={[
-                  { label: 'KOSPI', value: 'KOSPI' },
-                  { label: 'KOSDAQ', value: 'KOSDAQ' },
-                  { label: 'KOSPI+KOSDAQ', value: 'ALL' },
-                ]}
-              />
-            </label>
-            <label className="builder-field">
               <span>모델</span>
               <Select
-                value={model}
-                onChange={setModel}
-                options={[{ label: '모델 사용 안함', value: '' }, ...onnxModels.map((item) => ({ label: item.name, value: item.id }))]}
+                value={modelId}
+                onChange={setModelId}
+                options={[{ label: '모델 사용 안함', value: '' }, ...models.map((item) => ({ label: item.name, value: item.id }))]}
               />
             </label>
           </div>
 
           <div className="builder-buttons">
-            <Btn variant="ghost">
+            <Btn variant="ghost" onClick={handleExport} disabled={!selectedStrategy}>
               {ICONS.save}
               JSON 내보내기
             </Btn>
-            <Btn variant="primary" onClick={runBacktest} disabled={isRunning}>
+            <Btn variant="primary" onClick={runBacktest} disabled={isRunning || !strategyId}>
               {isRunning ? '실행 중...' : `${ICONS.play} 백테스트 실행`}
             </Btn>
           </div>
@@ -576,8 +714,8 @@ const StrategyBuilder = () => {
               {ICONS.info} {error}
             </div>
           )}
-          {backtestResult ? (
-            <PerformanceReport result={backtestResult} />
+          {result ? (
+            <PerformanceReport result={result} />
           ) : (
             <div className="placeholder">
               <div className="placeholder__icon">{ICONS.chart}</div>
@@ -592,8 +730,9 @@ const StrategyBuilder = () => {
   )
 }
 
-const BacktestsPage = () => {
-  const [detail, setDetail] = useState<BacktestSummary | null>(null)
+const BacktestsPage = ({ backtests, strategies, onSelect }: { backtests: Backtest[]; strategies: Strategy[]; onSelect: (item: Backtest) => void }) => {
+  const strategyMap = useMemo(() => new Map(strategies.map((item) => [item.id, item])), [strategies])
+  const rows = useMemo(() => [...backtests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [backtests])
 
   return (
     <div className="page-section">
@@ -605,6 +744,7 @@ const BacktestsPage = () => {
                 <th>Run ID</th>
                 <th>전략</th>
                 <th>기간</th>
+                <th>초기자금</th>
                 <th>CAGR</th>
                 <th>MDD</th>
                 <th>Sharpe</th>
@@ -612,101 +752,136 @@ const BacktestsPage = () => {
               </tr>
             </thead>
             <tbody>
-              {sampleBacktests.map((item) => (
-                <tr key={item.id}>
-                  <td className="mono">{item.id}</td>
-                  <td>{item.strategy}</td>
-                  <td>
-                    {item.start} ~ {item.end}
-                  </td>
-                  <td>{item.cagr}%</td>
-                  <td>{item.mdd}%</td>
-                  <td>{item.sharpe}</td>
-                  <td>
-                    <Btn variant="ghost" onClick={() => setDetail(item)}>
-                      자세히
-                    </Btn>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((item) => {
+                const strategy = strategyMap.get(item.strategy_id)
+                return (
+                  <tr key={item.id}>
+                    <td className="mono">{item.id}</td>
+                    <td>{strategy?.name ?? '-'}</td>
+                    <td>
+                      {toDateLabel(item.start_date)} ~ {toDateLabel(item.end_date)}
+                    </td>
+                    <td>₩{formatNumber(Number(item.initial_capital) || 0)}</td>
+                    <td>{formatPercent(item.metrics?.cagr ?? null)}</td>
+                    <td>{formatPercent(item.metrics?.max_drawdown ?? null)}</td>
+                    <td>{typeof item.metrics?.sharpe === 'number' ? item.metrics.sharpe.toFixed(2) : '-'}</td>
+                    <td>
+                      <Btn variant="ghost" onClick={() => onSelect(item)}>
+                        자세히
+                      </Btn>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </Card>
-
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={`백테스트 상세: ${detail?.id ?? ''}`}>
-        {detail && <PerformanceReport result={sampleBacktestResult} />}
-      </Modal>
     </div>
   )
 }
 
-const MyStrategies = () => {
-  const [items, setItems] = useState<StrategyItem[]>(sampleStrategies)
+const MyStrategies = ({ strategies, backtests, onRename, onClone, onDelete }: { strategies: Strategy[]; backtests: Backtest[]; onRename: (id: string, name: string) => Promise<void>; onClone: (id: string) => Promise<void>; onDelete: (id: string) => Promise<void> }) => {
+  const backtestsByStrategy = useMemo(() => {
+    const map = new Map<string, Backtest[]>()
+    backtests.forEach((item) => {
+      const list = map.get(item.strategy_id) ?? []
+      list.push(item)
+      map.set(item.strategy_id, list)
+    })
+    map.forEach((list, key) => {
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      map.set(key, list)
+    })
+    return map
+  }, [backtests])
 
-  const rename = (id: string) => {
-    const current = items.find((item) => item.id === id)
+  const handleRename = async (id: string) => {
+    const current = strategies.find((item) => item.id === id)
     if (!current) return
     const name = window.prompt('전략 이름 변경', current.name)
-    if (!name) return
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, name } : item)))
-  }
-
-  const clone = (id: string) => {
-    const source = items.find((item) => item.id === id)
-    if (!source) return
-    const copy: StrategyItem = {
-      ...source,
-      id: `STR-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-      name: `${source.name}_copy`,
-      updated: new Date().toISOString().slice(0, 10),
+    if (!name || name.trim() === '' || name === current.name) {
+      return
     }
-    setItems((prev) => [copy, ...prev])
+    try {
+      await onRename(id, name.trim())
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '전략 이름을 변경하지 못했습니다.')
+    }
   }
 
-  const remove = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id))
+  const handleClone = async (id: string) => {
+    try {
+      await onClone(id)
+      window.alert('전략이 복제되었습니다.')
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '전략 복제에 실패했습니다.')
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('정말로 삭제하시겠습니까?')) return
+    try {
+      await onDelete(id)
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '전략 삭제에 실패했습니다.')
+    }
   }
 
   return (
     <div className="strategy-grid">
-      {items.map((item) => (
-        <Card
-          key={item.id}
-          title={item.name}
-          icon={ICONS.layers}
-          right={<span className="card__meta">업데이트 {item.updated}</span>}
-        >
-          <div className="strategy-tags">
-            {item.tags.map((tag) => (
-              <span key={tag} className="tag">
-                #{tag}
-              </span>
-            ))}
-          </div>
-          <div className="strategy-ytd">YTD {item.ytd}%</div>
-          <div className="card__actions">
-            <Btn variant="ghost" onClick={() => rename(item.id)}>
-              {ICONS.edit} 이름 변경
-            </Btn>
-            <Btn variant="secondary" onClick={() => clone(item.id)}>
-              {ICONS.fork} 복제
-            </Btn>
-            <Btn variant="danger" onClick={() => remove(item.id)}>
-              {ICONS.trash} 삭제
-            </Btn>
-          </div>
+      {strategies.map((item) => {
+        const tags = getStrategyTags(item)
+        const latest = backtestsByStrategy.get(item.id)?.[0]
+        const ytd = latest?.metrics?.total_return ?? null
+        return (
+          <Card
+            key={item.id}
+            title={item.name}
+            icon={ICONS.layers}
+            right={<span className="card__meta">업데이트 {toDateLabel(item.updated_at)}</span>}
+          >
+            <div className="strategy-tags">
+              {tags.length > 0 ? (
+                tags.map((tag) => (
+                  <span key={tag} className="tag">
+                    #{tag}
+                  </span>
+                ))
+              ) : (
+                <span className="tag">#strategy</span>
+              )}
+            </div>
+            <div className="strategy-ytd">누적 수익률 {formatPercent(ytd)}</div>
+            {item.description && <p className="strategy-description">{item.description}</p>}
+            <div className="card__actions">
+              <Btn variant="ghost" onClick={() => handleRename(item.id)}>
+                {ICONS.edit} 이름 변경
+              </Btn>
+              <Btn variant="secondary" onClick={() => handleClone(item.id)}>
+                {ICONS.fork} 복제
+              </Btn>
+              <Btn variant="danger" onClick={() => handleDelete(item.id)}>
+                {ICONS.trash} 삭제
+              </Btn>
+            </div>
+          </Card>
+        )
+      })}
+      {strategies.length === 0 && (
+        <Card title="전략 없음" icon={ICONS.info}>
+          <p>등록된 전략이 없습니다. 커뮤니티에서 전략을 포크하거나 직접 등록해보세요.</p>
         </Card>
-      ))}
+      )}
     </div>
   )
 }
 
-const ModelsPage = () => {
-  const [items, setItems] = useState<ModelItem[]>(sampleModels)
+const ModelsPage = ({ models, onUpload, onDelete }: { models: MLModelItem[]; onUpload: (file: File) => Promise<void>; onDelete: (id: string) => Promise<void> }) => {
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
 
-  const upload = () => {
+  const upload = async () => {
     const file = fileRef.current?.files?.[0]
     if (!file) return
 
@@ -715,30 +890,36 @@ const ModelsPage = () => {
       return
     }
 
-    const next: ModelItem = {
-      id: `MDL-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
-      name: file.name.replace(/\.[^.]+$/, ''),
-      version: '1.0.0',
-      framework: 'ONNX',
-      created: new Date().toISOString().slice(0, 10),
-      input: '{f1..fn}→score',
-    }
-
-    setItems((prev) => [next, ...prev])
-    if (fileRef.current) {
-      fileRef.current.value = ''
+    setUploading(true)
+    try {
+      await onUpload(file)
+      if (fileRef.current) {
+        fileRef.current.value = ''
+      }
+      window.alert('모델이 업로드되었습니다.')
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '모델 업로드에 실패했습니다.')
+    } finally {
+      setUploading(false)
     }
   }
 
-  const remove = (id: string) => setItems((prev) => prev.filter((item) => item.id !== id))
+  const remove = async (id: string) => {
+    if (!window.confirm('모델을 삭제하시겠습니까?')) return
+    try {
+      await onDelete(id)
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '모델 삭제에 실패했습니다.')
+    }
+  }
 
   return (
     <div className="page-section">
       <Card title="모델 업로드" icon={ICONS.upload}>
         <div className="model-upload">
-          <input ref={fileRef} type="file" className="model-upload__input" />
-          <Btn variant="primary" onClick={upload}>
-            {ICONS.upload} 업로드
+          <input ref={fileRef} type="file" className="model-upload__input" accept=".onnx" />
+          <Btn variant="primary" onClick={upload} disabled={uploading}>
+            {uploading ? '업로드 중…' : `${ICONS.upload} 업로드`}
           </Btn>
         </div>
         <div className="model-upload__hint">허용: .onnx (ONNX 타입만 지원)</div>
@@ -758,18 +939,22 @@ const ModelsPage = () => {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {models.map((item) => (
                 <tr key={item.id}>
                   <td className="bold">{item.name}</td>
-                  <td>{item.version}</td>
-                  <td>{item.framework}</td>
-                  <td>{item.input}</td>
-                  <td>{item.created}</td>
+                  <td>-</td>
+                  <td>ONNX</td>
+                  <td>-</td>
+                  <td>{toDateLabel(item.created_at)}</td>
                   <td>
                     <div className="table-actions">
-                      <Btn variant="ghost">테스트</Btn>
-                      <Btn variant="secondary">버전업</Btn>
-                      <Btn variant="danger" onClick={() => remove(item.id)}>
+                      <Btn variant="ghost" disabled>
+                        테스트
+                      </Btn>
+                      <Btn variant="secondary" disabled>
+                        버전업
+                      </Btn>
+                      <Btn variant="danger" onClick={() => void remove(item.id)}>
                         {ICONS.trash} 삭제
                       </Btn>
                     </div>
@@ -784,38 +969,43 @@ const ModelsPage = () => {
   )
 }
 
-const CommunityPage = () => {
-  const [detail, setDetail] = useState<CommunityItem | null>(null)
+const CommunityPage = ({ items, onFork }: { items: CommunityFeedItem[]; onFork: (id: string) => Promise<void> }) => {
+  const [detail, setDetail] = useState<CommunityFeedItem | null>(null)
 
   return (
     <div className="community-grid">
-      {communityItems.map((item) => (
+      {items.map((item) => (
         <Card
           key={item.id}
-          title={item.name}
+          title={item.title}
           icon={ICONS.share}
-          right={<span className="card__meta">YTD {item.ytd}%</span>}
+          right={<span className="card__meta">작성자 {item.author_username}</span>}
         >
-          <div className="community-meta">by {item.author} · ⭐ {item.stars} · 🍴 {item.forks}</div>
-          <pre className="community-code">{item.code}</pre>
-          <div className="strategy-tags">
-            {item.tags.map((tag) => (
-              <span key={tag} className="tag">
-                #{tag}
-              </span>
-            ))}
-          </div>
+          <div className="community-meta">게시일 {toDateLabel(item.created_at)}</div>
+          <p className="community-content">{item.content}</p>
           <div className="card__actions">
             <Btn variant="ghost" onClick={() => setDetail(item)}>
               JSON 보기
             </Btn>
-            <Btn variant="secondary">{ICONS.edit} 복사</Btn>
+            <Btn
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await onFork(item.id)
+                  window.alert('전략이 내 전략 목록에 추가되었습니다.')
+                } catch (error) {
+                  window.alert(error instanceof Error ? error.message : '전략 복사에 실패했습니다.')
+                }
+              }}
+            >
+              {ICONS.fork} 복사
+            </Btn>
           </div>
         </Card>
       ))}
 
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={`전략 JSON: ${detail?.name ?? ''}`}>
-        {detail && <pre className="modal-json">{JSON.stringify(detail.json, null, 2)}</pre>}
+      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={`전략 JSON: ${detail?.title ?? ''}`}>
+        {detail && <pre className="modal-json">{JSON.stringify(detail.strategy, null, 2)}</pre>}
       </Modal>
     </div>
   )
@@ -869,7 +1059,7 @@ const SettingsPage = () => {
   )
 }
 
-const TopHeader = ({ page, onChange }: { page: PageKey; onChange: (value: PageKey) => void }) => (
+const TopHeader = ({ page, onChange, onLogout }: { page: PageKey; onChange: (value: PageKey) => void; onLogout: () => void }) => (
   <header className="top-header">
     <div className="top-header__inner">
       <div className="brand">QuantiMizer</div>
@@ -888,32 +1078,432 @@ const TopHeader = ({ page, onChange }: { page: PageKey; onChange: (value: PageKe
           </button>
         ))}
       </nav>
-      <button type="button" className="logout-button" title="로그아웃">
+      <button type="button" className="logout-button" title="로그아웃" onClick={onLogout}>
         {ICONS.logout}
       </button>
     </div>
   </header>
 )
 
+const normalizeBacktest = (item: Backtest): Backtest => {
+  const initialCapital = typeof item.initial_capital === 'number' ? item.initial_capital : Number(item.initial_capital)
+  const equityCurve = Array.isArray(item.equity_curve)
+    ? item.equity_curve.map((point) => {
+        const rawEquity = typeof point.equity === 'number' ? point.equity : Number(point.equity)
+        return {
+          date: String(point.date),
+          equity: Number.isFinite(rawEquity) ? rawEquity : 0,
+        }
+      })
+    : []
+  const metricsEntries = Object.entries(item.metrics ?? {})
+  const metrics: Record<string, number> = {}
+  metricsEntries.forEach(([key, value]) => {
+    const numeric = typeof value === 'number' ? value : Number(value)
+    if (Number.isFinite(numeric)) {
+      metrics[key] = numeric
+    }
+  })
+  return {
+    ...item,
+    initial_capital: Number.isFinite(initialCapital) ? initialCapital : 0,
+    equity_curve: equityCurve,
+    metrics,
+  }
+}
+
 const App = () => {
   const [page, setPage] = useState<PageKey>('builder')
-  const [preview, setPreview] = useState<BacktestSummary | null>(null)
+  const [tokens, setTokensState] = useState<AuthTokens | null>(() => {
+    try {
+      const raw = localStorage.getItem(TOKEN_STORAGE_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as AuthTokens
+      if (parsed?.accessToken && parsed?.refreshToken) {
+        return parsed
+      }
+      return null
+    } catch {
+      return null
+    }
+  })
+  const [strategies, setStrategies] = useState<Strategy[]>([])
+  const [backtests, setBacktests] = useState<Backtest[]>([])
+  const [models, setModels] = useState<MLModelItem[]>([])
+  const [communityItems, setCommunityItems] = useState<CommunityFeedItem[]>([])
+  const [selectedBacktest, setSelectedBacktest] = useState<Backtest | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [globalError, setGlobalError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(false)
+
+  const setTokens = useCallback((next: AuthTokens | null) => {
+    setTokensState(next)
+    if (next) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(next))
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY)
+    }
+  }, [])
+
+  const authorized = Boolean(tokens?.accessToken)
+
+  const login = useCallback(async (email: string, password: string) => {
+    const body = new URLSearchParams()
+    body.set('username', email)
+    body.set('password', password)
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    })
+    if (!response.ok) {
+      let message = '로그인에 실패했습니다.'
+      try {
+        const data = (await response.json()) as { detail?: string }
+        if (data?.detail) {
+          message = data.detail
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message)
+    }
+    const data = (await response.json()) as TokenResponse
+    setTokens({ accessToken: data.access_token, refreshToken: data.refresh_token })
+  }, [setTokens])
+
+  const register = useCallback(async (email: string, username: string, password: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, username, password }),
+    })
+    if (!response.ok) {
+      let message = '회원가입에 실패했습니다.'
+      try {
+        const data = (await response.json()) as { detail?: string }
+        if (data?.detail) {
+          message = data.detail
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message)
+    }
+    await login(email, password)
+  }, [login])
+
+  const apiFetch = useCallback(
+    async (path: string, init?: RequestInit, skipAuth = false): Promise<Response> => {
+      const headers = new Headers(init?.headers ?? {})
+      if (!skipAuth && tokens?.accessToken) {
+        headers.set('Authorization', `Bearer ${tokens.accessToken}`)
+      }
+
+      const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+      if (response.status !== 401 || skipAuth || !tokens?.refreshToken) {
+        return response
+      }
+
+      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tokens.refreshToken}` },
+      })
+      if (!refreshResponse.ok) {
+        setTokens(null)
+        throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.')
+      }
+      const refreshData = (await refreshResponse.json()) as TokenResponse
+      const nextTokens = { accessToken: refreshData.access_token, refreshToken: refreshData.refresh_token }
+      setTokens(nextTokens)
+
+      const retryHeaders = new Headers(init?.headers ?? {})
+      retryHeaders.set('Authorization', `Bearer ${nextTokens.accessToken}`)
+      return fetch(`${API_BASE_URL}${path}`, { ...init, headers: retryHeaders })
+    },
+    [setTokens, tokens],
+  )
+
+  const loadStrategies = useCallback(async () => {
+    const response = await apiFetch('/strategies?skip=0&limit=100')
+    if (!response.ok) {
+      throw new Error('전략 목록을 불러오지 못했습니다.')
+    }
+    const data = (await response.json()) as StrategyListResponse
+    setStrategies(data.items)
+  }, [apiFetch])
+
+  const loadBacktests = useCallback(async () => {
+    const response = await apiFetch('/backtests?skip=0&limit=100')
+    if (!response.ok) {
+      throw new Error('백테스트 목록을 불러오지 못했습니다.')
+    }
+    const data = (await response.json()) as BacktestListResponse
+    setBacktests(data.items.map((item) => normalizeBacktest(item)))
+  }, [apiFetch])
+
+  const loadModels = useCallback(async () => {
+    const response = await apiFetch('/models')
+    if (!response.ok) {
+      throw new Error('모델 목록을 불러오지 못했습니다.')
+    }
+    const data = (await response.json()) as ModelListResponse
+    setModels(data.items)
+  }, [apiFetch])
+
+  const loadCommunity = useCallback(async () => {
+    const response = await apiFetch('/community/posts')
+    if (!response.ok) {
+      throw new Error('커뮤니티 게시글을 불러오지 못했습니다.')
+    }
+    const data = (await response.json()) as CommunityListResponse
+    setCommunityItems(data.items)
+  }, [apiFetch])
+
+  useEffect(() => {
+    if (!authorized) {
+      setStrategies([])
+      setBacktests([])
+      setModels([])
+      setCommunityItems([])
+      return
+    }
+
+    let cancelled = false
+    const loadAll = async () => {
+      setIsLoading(true)
+      setGlobalError(null)
+      try {
+        await Promise.all([loadStrategies(), loadBacktests(), loadModels(), loadCommunity()])
+      } catch (error) {
+        if (!cancelled) {
+          setGlobalError(error instanceof Error ? error.message : '데이터를 불러오는 중 오류가 발생했습니다.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadAll()
+
+    return () => {
+      cancelled = true
+    }
+  }, [authorized, loadStrategies, loadBacktests, loadModels, loadCommunity])
+
+  const handleRunBacktest = useCallback(
+    async ({ strategyId, startDate, endDate, initialCapital, mlModelId }: { strategyId: string; startDate: string; endDate: string; initialCapital: number; mlModelId: string | null }) => {
+      const response = await apiFetch('/backtests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          strategy_id: strategyId,
+          start_date: startDate,
+          end_date: endDate,
+          initial_capital: initialCapital,
+          ml_model_id: mlModelId,
+        }),
+      })
+      if (!response.ok) {
+        let message = '백테스트 실행에 실패했습니다.'
+        try {
+          const data = (await response.json()) as { detail?: string }
+          if (data?.detail) {
+            message = data.detail
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message)
+      }
+      const data = (await response.json()) as Backtest
+      const normalized = normalizeBacktest(data)
+      setBacktests((prev) => [normalized, ...prev.filter((item) => item.id !== normalized.id)])
+      return normalized
+    },
+    [apiFetch],
+  )
+
+  const handleRenameStrategy = useCallback(
+    async (id: string, name: string) => {
+      const response = await apiFetch(`/strategies/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!response.ok) {
+        throw new Error('전략 이름을 수정하지 못했습니다.')
+      }
+      const updated = (await response.json()) as Strategy
+      setStrategies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+    },
+    [apiFetch],
+  )
+
+  const handleCloneStrategy = useCallback(
+    async (id: string) => {
+      const source = strategies.find((item) => item.id === id)
+      if (!source) return
+      const response = await apiFetch('/strategies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${source.name} (copy)`,
+          description: source.description,
+          strategy_json: source.strategy_json,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error('전략 복제에 실패했습니다.')
+      }
+      const created = (await response.json()) as Strategy
+      setStrategies((prev) => [created, ...prev])
+    },
+    [apiFetch, strategies],
+  )
+
+  const handleDeleteStrategy = useCallback(
+    async (id: string) => {
+      const response = await apiFetch(`/strategies/${id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        throw new Error('전략 삭제에 실패했습니다.')
+      }
+      setStrategies((prev) => prev.filter((item) => item.id !== id))
+    },
+    [apiFetch],
+  )
+
+  const handleUploadModel = useCallback(
+    async (file: File) => {
+      const form = new FormData()
+      form.append('name', file.name.replace(/\.[^.]+$/, ''))
+      form.append('file', file)
+      const response = await apiFetch('/models/upload', {
+        method: 'POST',
+        body: form,
+      })
+      if (!response.ok) {
+        let message = '모델 업로드에 실패했습니다.'
+        try {
+          const data = (await response.json()) as { detail?: string }
+          if (data?.detail) {
+            message = data.detail
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message)
+      }
+      const created = (await response.json()) as MLModelItem
+      setModels((prev) => [created, ...prev])
+    },
+    [apiFetch],
+  )
+
+  const handleDeleteModel = useCallback(
+    async (id: string) => {
+      const response = await apiFetch(`/models/${id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        throw new Error('모델 삭제에 실패했습니다.')
+      }
+      setModels((prev) => prev.filter((item) => item.id !== id))
+    },
+    [apiFetch],
+  )
+
+  const handleForkCommunity = useCallback(
+    async (postId: string) => {
+      const response = await apiFetch(`/community/posts/${postId}/fork`, { method: 'POST' })
+      if (!response.ok) {
+        throw new Error('전략 복사에 실패했습니다.')
+      }
+      const created = (await response.json()) as Strategy
+      setStrategies((prev) => [created, ...prev])
+    },
+    [apiFetch],
+  )
+
+  const handleLogout = useCallback(() => {
+    setTokens(null)
+    setPage('builder')
+  }, [setTokens])
+
+  const handleLoginSubmit = useCallback(
+    async (email: string, password: string) => {
+      setAuthError(null)
+      setAuthLoading(true)
+      try {
+        await login(email, password)
+      } catch (error) {
+        setAuthError(error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.')
+        throw error
+      } finally {
+        setAuthLoading(false)
+      }
+    },
+    [login],
+  )
+
+  const handleRegisterSubmit = useCallback(
+    async (email: string, username: string, password: string) => {
+      setAuthError(null)
+      setAuthLoading(true)
+      try {
+        await register(email, username, password)
+      } catch (error) {
+        setAuthError(error instanceof Error ? error.message : '회원가입 중 오류가 발생했습니다.')
+        throw error
+      } finally {
+        setAuthLoading(false)
+      }
+    },
+    [register],
+  )
+
+  if (!authorized) {
+    return (
+      <div className="auth-shell">
+        <AuthForm onLogin={handleLoginSubmit} onRegister={handleRegisterSubmit} error={authError} loading={authLoading} />
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell">
-      <TopHeader page={page} onChange={setPage} />
+      <TopHeader page={page} onChange={setPage} onLogout={handleLogout} />
       <main className="main-content">
-        {page === 'dashboard' && <Dashboard onOpenBacktest={setPreview} />}
-        {page === 'builder' && <StrategyBuilder />}
-        {page === 'backtests' && <BacktestsPage />}
-        {page === 'strategies' && <MyStrategies />}
-        {page === 'models' && <ModelsPage />}
-        {page === 'community' && <CommunityPage />}
+        {isLoading && (
+          <div className="alert alert--info">
+            {ICONS.info} 데이터를 불러오는 중입니다...
+          </div>
+        )}
+        {globalError && (
+          <div className="alert alert--error">
+            {ICONS.info} {globalError}
+          </div>
+        )}
+        {page === 'dashboard' && <Dashboard strategies={strategies} backtests={backtests} models={models} onOpenBacktest={setSelectedBacktest} />}
+        {page === 'builder' && <StrategyBuilder strategies={strategies} models={models} onRunBacktest={handleRunBacktest} />}
+        {page === 'backtests' && <BacktestsPage backtests={backtests} strategies={strategies} onSelect={setSelectedBacktest} />}
+        {page === 'strategies' && (
+          <MyStrategies
+            strategies={strategies}
+            backtests={backtests}
+            onRename={handleRenameStrategy}
+            onClone={handleCloneStrategy}
+            onDelete={handleDeleteStrategy}
+          />
+        )}
+        {page === 'models' && <ModelsPage models={models} onUpload={handleUploadModel} onDelete={handleDeleteModel} />}
+        {page === 'community' && <CommunityPage items={communityItems} onFork={handleForkCommunity} />}
         {page === 'settings' && <SettingsPage />}
       </main>
 
-      <Modal open={Boolean(preview)} onClose={() => setPreview(null)} title={`백테스트 상세: ${preview?.id ?? ''}`}>
-        {preview && <PerformanceReport result={sampleBacktestResult} />}
+      <Modal open={Boolean(selectedBacktest)} onClose={() => setSelectedBacktest(null)} title={`백테스트 상세: ${selectedBacktest?.id ?? ''}`}>
+        {selectedBacktest && <PerformanceReport result={selectedBacktest} />}
       </Modal>
     </div>
   )
