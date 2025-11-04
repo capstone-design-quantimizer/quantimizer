@@ -61,7 +61,7 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
   },
 }
 
-type FactorBlock = Blockly.Block & {
+type FactorBlock = Blockly.BlockSvg & {
   updateModelVisibility?: () => void
 }
 
