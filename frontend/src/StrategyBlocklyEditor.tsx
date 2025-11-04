@@ -286,7 +286,7 @@ const initializeBlocks = () => {
       ],
       message1: '가중치 %1',
       args1: [
-        { type: 'field_number', name: 'WEIGHT_METHOD', value: 0.5, min: 0, max: 1, precision: 0.01 }
+        { type: 'field_number', name: 'WEIGHT', value: 0.5, min: 0, max: 1, precision: 0.01 }
       ],
       message2: '모델 ID %1',
       args2: [
@@ -366,7 +366,7 @@ const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
       const name = current.getFieldValue('FACTOR') as FactorName
       if (FACTOR_OPTIONS.some(([, value]) => value === name)) {
         const direction = current.getFieldValue('DIRECTION') as FactorDirection
-        const weight = Number(current.getFieldValue('WEIGHT_METHOD'))
+        const weight = Number(current.getFieldValue('WEIGHT'))
         const normalizedWeight = Number.isFinite(weight) ? weight : 0
         const factor: FactorConfig = {
           name,
@@ -433,7 +433,7 @@ const applyStrategyToWorkspace = (workspace: any, config: StrategyConfig) => {
       const factorBlock = workspace.newBlock('factor_item') as FactorBlock
       factorBlock.setFieldValue(factor.name, 'FACTOR')
       factorBlock.setFieldValue(factor.direction, 'DIRECTION')
-      factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT_METHOD')
+      factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT')
       if (factor.name === 'ML_MODEL') {
         factorBlock.setFieldValue(factor.model_id?.trim() ?? '', 'MODEL_ID')
       }
