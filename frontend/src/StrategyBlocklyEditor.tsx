@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import * as Blockly from 'blockly/core'
+import * as Blockly from 'blockly'
 import 'blockly/blocks'
 import 'blockly/msg/ko'
 
@@ -197,110 +197,113 @@ const initializeBlocks = () => {
   }
   blocksInitialized = true
 
-  Blockly.Blocks['strategy_root'] = {
-    init() {
-      this.appendDummyInput().appendField('투자 전략')
-      this.appendStatementInput('UNIVERSE').setCheck('universe_section').appendField('Universe 설정')
-      this.appendStatementInput('FACTORS').setCheck('factors_section').appendField('Factors 설정')
-      this.appendStatementInput('PORTFOLIO').setCheck('portfolio_section').appendField('포트폴리오 구성')
-      this.appendStatementInput('REBALANCING').setCheck('rebalancing_section').appendField('리밸런싱')
-      this.setColour(210)
-      this.setDeletable(false)
-    },
-  }
-
-  Blockly.Blocks['universe_settings'] = {
-    init() {
-      this.appendDummyInput()
-        .appendField('시장')
-        .appendField(new Blockly.FieldDropdown(MARKET_OPTIONS), 'MARKET')
-      this.appendDummyInput()
-        .appendField('최소 시가총액')
-        .appendField(new Blockly.FieldNumber(0, 0, Number.POSITIVE_INFINITY, 1), 'MIN_CAP')
-        .appendField('억원')
-      this.appendDummyInput()
-        .appendField('제외 - 관리종목')
-        .appendField(new Blockly.FieldCheckbox('FALSE'), 'EXCLUDE_MANAGED')
-      this.appendDummyInput()
-        .appendField('제외 - 거래정지')
-        .appendField(new Blockly.FieldCheckbox('FALSE'), 'EXCLUDE_SUSPENDED')
-      this.setPreviousStatement(true, 'universe_section')
-      this.setColour(195)
-      this.setTooltip('투자 Universe를 정의합니다.')
-    },
-  }
-
-  Blockly.Blocks['factors_section'] = {
-    init() {
-      this.appendDummyInput().appendField('팩터 조합')
-      this.appendStatementInput('ITEMS').setCheck('factor_item').appendField('팩터 목록')
-      this.setPreviousStatement(true, 'factors_section')
-      this.setColour(220)
-      this.setDeletable(false)
-    },
-  }
-
-  Blockly.Blocks['factor_item'] = {
-    init(this: FactorBlock) {
-      this.appendDummyInput('FACTOR_HEADER')
-        .appendField('팩터')
-        .appendField(new Blockly.FieldDropdown(FACTOR_OPTIONS), 'FACTOR')
-        .appendField('방향')
-        .appendField(new Blockly.FieldDropdown(DIRECTION_OPTIONS), 'DIRECTION')
-      this.appendDummyInput('FACTOR_WEIGHT')
-        .appendField('가중치')
-        .appendField(new Blockly.FieldNumber(0.5, 0, 1, 0.01), 'WEIGHT')
-      this.appendDummyInput('MODEL')
-        .appendField('모델 ID')
-        .appendField(new Blockly.FieldTextInput(''), 'MODEL_ID')
-      this.setPreviousStatement(true, 'factor_item')
-      this.setNextStatement(true, 'factor_item')
-      this.setColour(245)
-      this.setTooltip('하나의 팩터를 정의합니다.')
-
-      const updateModelVisibility = () => {
-        if (!this.workspace || this.isInFlyout) return
-        const shouldShow = this.getFieldValue('FACTOR') === 'ML_MODEL'
-        const input = this.getInput('MODEL')
-        if (input) {
-          input.setVisible(shouldShow)
-        }
-        this.render()
+  Blockly.Extensions.register('factor_item_extension', function (this: FactorBlock) {
+    const updateModelVisibility = () => {
+      if (!this.workspace || this.isInFlyout) return
+      const shouldShow = this.getFieldValue('FACTOR') === 'ML_MODEL'
+      const input = this.getInput('MODEL')
+      if (input) {
+        input.setVisible(shouldShow)
       }
+      this.render()
+    }
+    this.updateModelVisibility = updateModelVisibility
+    this.setOnChange(() => updateModelVisibility())
+    updateModelVisibility()
+  })
 
-      this.updateModelVisibility = updateModelVisibility
-      this.setOnChange(() => {
-        updateModelVisibility()
-      })
-      updateModelVisibility()
+  Blockly.defineBlocksWithJsonArray([
+    {
+      type: 'strategy_root',
+      message0: '투자 전략',
+      message1: 'Universe 설정 %1',
+      args1: [{ type: 'input_statement', name: 'UNIVERSE', check: 'universe_section' }],
+      message2: 'Factors 설정 %1',
+      args2: [{ type: 'input_statement', name: 'FACTORS', check: 'factors_section' }],
+      message3: '포트폴리오 구성 %1',
+      args3: [{ type: 'input_statement', name: 'PORTFOLIO', check: 'portfolio_section' }],
+      message4: '리밸런싱 %1',
+      args4: [{ type: 'input_statement', name: 'REBALANCING', check: 'rebalancing_section' }],
+      colour: 210,
+      deletable: false
     },
-  }
-
-  Blockly.Blocks['portfolio_settings'] = {
-    init() {
-      this.appendDummyInput()
-        .appendField('종목 개수')
-        .appendField(new Blockly.FieldNumber(20, 1, Number.POSITIVE_INFINITY, 1), 'TOP_N')
-        .appendField('개')
-      this.appendDummyInput()
-        .appendField('가중 방식')
-        .appendField(new Blockly.FieldDropdown(WEIGHTING_OPTIONS), 'WEIGHTING')
-      this.setPreviousStatement(true, 'portfolio_section')
-      this.setColour(165)
-      this.setTooltip('포트폴리오 구성 방식')
+    {
+      type: 'universe_settings',
+      message0: '시장 %1',
+      args0: [
+        { type: 'field_dropdown', name: 'MARKET', options: MARKET_OPTIONS }
+      ],
+      message1: '최소 시가총액 %1 억원',
+      args1: [
+        { type: 'field_number', name: 'MIN_CAP', value: 0, min: 0, precision: 1 }
+      ],
+      message2: '제외 - 관리종목 %1',
+      args2: [
+        { type: 'field_checkbox', name: 'EXCLUDE_MANAGED', checked: false }
+      ],
+      message3: '제외 - 거래정지 %1',
+      args3: [
+        { type: 'field_checkbox', name: 'EXCLUDE_SUSPENDED', checked: false }
+      ],
+      previousStatement: 'universe_section',
+      colour: 195,
+      tooltip: '투자 Universe를 정의합니다.'
     },
-  }
-
-  Blockly.Blocks['rebalancing_settings'] = {
-    init() {
-      this.appendDummyInput()
-        .appendField('리밸런싱 주기')
-        .appendField(new Blockly.FieldDropdown(REBALANCING_OPTIONS), 'FREQUENCY')
-      this.setPreviousStatement(true, 'rebalancing_section')
-      this.setColour(140)
-      this.setTooltip('리밸런싱 일정')
+    {
+      type: 'factors_section',
+      message0: '팩터 조합',
+      message1: '팩터 목록 %1',
+      args1: [{ type: 'input_statement', name: 'ITEMS', check: 'factor_item' }],
+      previousStatement: 'factors_section',
+      colour: 220,
+      deletable: false
     },
-  }
+    {
+      type: 'factor_item',
+      message0: '팩터 %1 방향 %2',
+      args0: [
+        { type: 'field_dropdown', name: 'FACTOR', options: FACTOR_OPTIONS },
+        { type: 'field_dropdown', name: 'DIRECTION', options: DIRECTION_OPTIONS }
+      ],
+      message1: '가중치 %1',
+      args1: [
+        { type: 'field_number', name: 'WEIGHT', value: 0.5, min: 0, max: 1, precision: 0.01 }
+      ],
+      message2: '모델 ID %1',
+      args2: [
+        { type: 'field_input', name: 'MODEL_ID', text: '' }
+      ],
+      previousStatement: 'factor_item',
+      nextStatement: 'factor_item',
+      colour: 245,
+      tooltip: '하나의 팩터를 정의합니다.',
+      extensions: ['factor_item_extension']
+    },
+    {
+      type: 'portfolio_settings',
+      message0: '종목 개수 %1 개',
+      args0: [
+        { type: 'field_number', name: 'TOP_N', value: 20, min: 1, precision: 1 }
+      ],
+      message1: '가중 방식 %1',
+      args1: [
+        { type: 'field_dropdown', name: 'WEIGHTING', options: WEIGHTING_OPTIONS }
+      ],
+      previousStatement: 'portfolio_section',
+      colour: 165,
+      tooltip: '포트폴리오 구성 방식'
+    },
+    {
+      type: 'rebalancing_settings',
+      message0: '리밸런싱 주기 %1',
+      args0: [
+        { type: 'field_dropdown', name: 'FREQUENCY', options: REBALANCING_OPTIONS }
+      ],
+      previousStatement: 'rebalancing_section',
+      colour: 140,
+      tooltip: '리밸런싱 일정'
+    }
+  ])
 }
 
 initializeBlocks()
