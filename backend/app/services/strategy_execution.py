@@ -405,6 +405,9 @@ def _run_backtesting_adapter(equity_curve: dict[date, float], initial_capital: f
     eq = pd.Series(equity_curve).sort_index()
     eq.index = pd.to_datetime(eq.index)
     price = eq.to_frame(name="Close")
+    price["Open"] = price["Close"]
+    price["High"] = price["Close"]
+    price["Low"] = price["Close"]
     Backtest(price, _EquityReplayStrategy, cash=initial_capital, commission=0.0).run()
 
 
