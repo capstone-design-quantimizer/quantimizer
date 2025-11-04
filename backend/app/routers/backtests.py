@@ -42,4 +42,5 @@ def list_backtests_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> BacktestListResponse:
     total, items = list_backtests(db, current_user.id, skip, limit)
-    return BacktestListResponse(total=total, items=items)
+    response_items = [BacktestRead.model_validate(item) for item in items]
+    return BacktestListResponse(total=total, items=response_items)
