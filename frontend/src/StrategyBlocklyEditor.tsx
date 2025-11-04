@@ -500,9 +500,9 @@ export const StrategyBlocklyEditor = ({
       zoom: {
         controls: true,
         wheel: true,
-        startScale: 1,
+        startScale: 0.5,
         maxScale: 2,
-        minScale: 0.5,
+        minScale: 0.3,
       },
     })
 
