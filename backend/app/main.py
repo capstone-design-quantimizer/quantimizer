@@ -11,7 +11,7 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
 origins = [
-    "http://localhost:5173/",   # Vite dev 서버
+    "http://localhost:5173",   # Vite dev 서버
     "http://127.0.0.1:5173",
     "http://4.190.161.33",     # 배포된 프론트 주소 
     "https://4.190.161.33",    # HTTPS 접속 시
