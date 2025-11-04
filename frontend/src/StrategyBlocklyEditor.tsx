@@ -61,11 +61,9 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
   },
 }
 
-type FactorBlock = Blockly.BlockSvg & {
-  updateModelVisibility?: () => void
-}
+type FactorBlock = any
 
-type ToolboxDefinition = Blockly.utils.toolbox.ToolboxDefinition
+type ToolboxDefinition = any
 
 const FACTOR_OPTIONS: Array<[string, FactorName]> = [
   ['PER (주가수익비율)', 'PER'],
@@ -130,16 +128,19 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
     return base
   }
 
-  if (isRecord(input.universe)) {
-    const market = String(input.universe.market ?? base.universe.market)
+  const source = isRecord(input.definition) ? (input.definition as Record<string, unknown>) : input
+
+  if (isRecord(source.universe)) {
+    const universe = source.universe
+    const market = String(universe.market ?? base.universe.market)
     if (MARKET_OPTIONS.some(([, value]) => value === market)) {
       base.universe.market = market as MarketCode
     }
-    const minCap = Number(input.universe.min_market_cap)
+    const minCap = Number(universe.min_market_cap)
     base.universe.min_market_cap = Number.isFinite(minCap) && minCap >= 0 ? Math.floor(minCap) : base.universe.min_market_cap
-    if (Array.isArray(input.universe.exclude)) {
+    if (Array.isArray(universe.exclude)) {
       const set = new Set<string>()
-      for (const item of input.universe.exclude) {
+      for (const item of universe.exclude) {
         if (typeof item !== 'string') continue
         const normalized = item.trim().toLowerCase()
         if (normalized === 'managed' || normalized === 'suspended') {
@@ -150,13 +151,15 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
     }
   }
 
-  if (Array.isArray(input.factors)) {
+  if (Array.isArray(source.factors)) {
     const factors: FactorConfig[] = []
-    for (const raw of input.factors) {
+    for (const raw of source.factors) {
       if (!isRecord(raw)) continue
-      const name = String(raw.name ?? '').trim() as FactorName
+      const rawName = 'name' in raw ? raw.name : raw.type
+      const name = String(rawName ?? '').trim() as FactorName
       if (!FACTOR_OPTIONS.some(([, value]) => value === name)) continue
-      const direction = String(raw.direction ?? 'desc').trim() as FactorDirection
+      const rawDirection = 'direction' in raw ? raw.direction : raw.order
+      const direction = String(rawDirection ?? 'desc').trim() as FactorDirection
       const validDirection = DIRECTION_OPTIONS.some(([, value]) => value === direction) ? direction : 'desc'
       const weightValue = Number(raw.weight)
       const weight = Number.isFinite(weightValue) ? weightValue : 0
@@ -170,17 +173,17 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
     base.factors = factors
   }
 
-  if (isRecord(input.portfolio)) {
-    const topN = Number(input.portfolio.top_n)
+  if (isRecord(source.portfolio)) {
+    const topN = Number(source.portfolio.top_n)
     base.portfolio.top_n = Number.isFinite(topN) && topN > 0 ? Math.floor(topN) : base.portfolio.top_n
-    const weight_method = String(input.portfolio.weight_method ?? base.portfolio.weight_method) as PortfolioWeighting
+    const weight_method = String(source.portfolio.weight_method ?? base.portfolio.weight_method) as PortfolioWeighting
     if (WEIGHTING_OPTIONS.some(([, value]) => value === weight_method)) {
       base.portfolio.weight_method = weight_method
     }
   }
 
-  if (isRecord(input.rebalancing)) {
-    const frequency = String(input.rebalancing.frequency ?? base.rebalancing.frequency) as RebalancingFrequency
+  if (isRecord(source.rebalancing)) {
+    const frequency = String(source.rebalancing.frequency ?? base.rebalancing.frequency) as RebalancingFrequency
     if (REBALANCING_OPTIONS.some(([, value]) => value === frequency)) {
       base.rebalancing.frequency = frequency
     }
@@ -324,7 +327,7 @@ const initializeBlocks = () => {
 
 initializeBlocks()
 
-const extractStrategyFromWorkspace = (workspace: Blockly.WorkspaceSvg): StrategyConfig => {
+const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
   const config: StrategyConfig = {
     universe: { ...DEFAULT_STRATEGY_CONFIG.universe },
     factors: [],
@@ -363,7 +366,7 @@ const extractStrategyFromWorkspace = (workspace: Blockly.WorkspaceSvg): Strategy
       const name = current.getFieldValue('FACTOR') as FactorName
       if (FACTOR_OPTIONS.some(([, value]) => value === name)) {
         const direction = current.getFieldValue('DIRECTION') as FactorDirection
-        const weight = Number(current.getFieldValue('WEIGHT'))
+        const weight = Number(current.getFieldValue('WEIGHT_METHOD'))
         const normalizedWeight = Number.isFinite(weight) ? weight : 0
         const factor: FactorConfig = {
           name,
@@ -402,16 +405,16 @@ const extractStrategyFromWorkspace = (workspace: Blockly.WorkspaceSvg): Strategy
   return config
 }
 
-const applyStrategyToWorkspace = (workspace: Blockly.WorkspaceSvg, config: StrategyConfig) => {
+const applyStrategyToWorkspace = (workspace: any, config: StrategyConfig) => {
   Blockly.Events.disable()
   try {
     workspace.clear()
-    const root = workspace.newBlock('strategy_root') as Blockly.BlockSvg
+    const root = workspace.newBlock('strategy_root') as any
     root.initSvg()
     root.render()
     root.moveBy(32, 32)
 
-    const universeBlock = workspace.newBlock('universe_settings') as Blockly.BlockSvg
+    const universeBlock = workspace.newBlock('universe_settings') as any
     universeBlock.setFieldValue(config.universe.market, 'MARKET')
     universeBlock.setFieldValue(String(config.universe.min_market_cap ?? 0), 'MIN_CAP')
     universeBlock.setFieldValue(config.universe.exclude.includes('managed') ? 'TRUE' : 'FALSE', 'EXCLUDE_MANAGED')
@@ -420,14 +423,14 @@ const applyStrategyToWorkspace = (workspace: Blockly.WorkspaceSvg, config: Strat
     universeBlock.render()
     root.getInput('UNIVERSE')?.connection?.connect(universeBlock.previousConnection)
 
-    const factorsSection = workspace.newBlock('factors_section') as Blockly.BlockSvg
+    const factorsSection = workspace.newBlock('factors_section') as any
     factorsSection.initSvg()
     factorsSection.render()
     root.getInput('FACTORS')?.connection?.connect(factorsSection.previousConnection)
 
-    let previousFactor: Blockly.Block | null = null
+    let previousFactor: any | null = null
     for (const factor of config.factors) {
-      const factorBlock = workspace.newBlock('factor_item') as Blockly.BlockSvg & FactorBlock
+      const factorBlock = workspace.newBlock('factor_item') as FactorBlock
       factorBlock.setFieldValue(factor.name, 'FACTOR')
       factorBlock.setFieldValue(factor.direction, 'DIRECTION')
       factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT_METHOD')
@@ -445,14 +448,14 @@ const applyStrategyToWorkspace = (workspace: Blockly.WorkspaceSvg, config: Strat
       previousFactor = factorBlock
     }
 
-    const portfolioBlock = workspace.newBlock('portfolio_settings') as Blockly.BlockSvg
+    const portfolioBlock = workspace.newBlock('portfolio_settings') as any
     portfolioBlock.setFieldValue(String(config.portfolio.top_n ?? 20), 'TOP_N')
     portfolioBlock.setFieldValue(config.portfolio.weight_method, 'WEIGHT_METHOD')
     portfolioBlock.initSvg()
     portfolioBlock.render()
     root.getInput('PORTFOLIO')?.connection?.connect(portfolioBlock.previousConnection)
 
-    const rebalancingBlock = workspace.newBlock('rebalancing_settings') as Blockly.BlockSvg
+    const rebalancingBlock = workspace.newBlock('rebalancing_settings') as any
     rebalancingBlock.setFieldValue(config.rebalancing.frequency, 'FREQUENCY')
     rebalancingBlock.initSvg()
     rebalancingBlock.render()
@@ -473,7 +476,7 @@ export const StrategyBlocklyEditor = ({
   onChange: (value: StrategyConfig) => void
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null)
+  const workspaceRef = useRef<any | null>(null)
   const lastSerializedRef = useRef<string>('')
 
   useEffect(() => {
