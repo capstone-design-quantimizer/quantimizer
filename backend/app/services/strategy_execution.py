@@ -97,7 +97,6 @@ class _EquityReplayStrategy(BTStrategy):
 
 # ---------- Parse ----------
 def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
-    print("Parsing strategy JSON: %s", strategy_json)
     definition = strategy_json.get("definition", strategy_json)
 
     uni = definition.get("universe") or {}
@@ -126,8 +125,9 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
 
     facs: list[FactorSpec] = []
     for rf in facs_raw:
-        name = str(rf.get("name", "")).upper().replace(" ", "")
-        direction = str(rf.get("direction", "desc")).lower()
+        name = str(rf.get("name", rf.get("type", ""))).upper().replace(" ", "")
+        direction = str(rf.get("direction", rf.get("order", "desc"))).lower()
+        
         weight = rf.get("weight", 1.0)
         model_id: uuid.UUID | None = None
 
@@ -175,7 +175,6 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
         portfolio=PortfolioSpec(top_n=top_n, weight_method=weight_method),
         rebalancing=RebalancingSpec(frequency=freq),
     )
-
 
 # ---------- SQL compile (WITH z-score) ----------
 def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, dict[str, Any], list[str]]:
