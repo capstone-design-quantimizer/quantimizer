@@ -178,12 +178,6 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
 
 # ---------- SQL compile (WITH z-score) ----------
 def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, dict[str, Any], list[str]]:
-    """
-    Build SQL that:
-      - selects universe & required factor columns
-      - computes per-event_date z-scores for NON-ML factors
-      - final_score = Σ weight * (± z_factor)
-    """
     non_ml = [f for f in spec.factors if f.name != "ML_MODEL" and f.weight != 0.0]
 
     required_cols = {
@@ -198,7 +192,7 @@ def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, 
             "rsi_14", "ma_20d", "momentum_3m", "momentum_12m", "volatility_20d", "market_cap",
             "per", "pbr", "eps", "bps", "dividend_yield"
         }:
-            required_cols.add(f"f.{col}")  # assume quality factors on fundamentals
+            required_cols.add(f"f.{col}")
 
     select_cols = ",\n        ".join(sorted(required_cols))
 
@@ -221,13 +215,9 @@ def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, 
     used: list[str] = []
     for f in non_ml:
         col = FACTOR_COLUMN_MAP[f.name]
-        source = f"s.{col}" if col in {
-            "rsi_14", "ma_20d", "momentum_3m", "momentum_12m", "volatility_20d", "market_cap"
-        } else "f." + col
-
         z = (
-            f"({source} - AVG({source}) OVER (PARTITION BY s.event_date)) "
-            f"/ NULLIF(STDDEV_SAMP({source}) OVER (PARTITION BY s.event_date), 0)"
+            f"({col} - AVG({col}) OVER (PARTITION BY event_date)) "
+            f"/ NULLIF(STDDEV_SAMP({col}) OVER (PARTITION BY event_date), 0)"
         )
         signed = f"-({z})" if f.direction == "asc" else z
         z_terms.append(f"{float(max(f.weight, 0.0)):.10f} * ({signed})")
