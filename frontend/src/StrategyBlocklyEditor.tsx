@@ -283,7 +283,7 @@ const initializeBlocks = () => {
       ],
       message1: '가중치 %1',
       args1: [
-        { type: 'field_number', name: 'WEIGHT', value: 0.5, min: 0, max: 1, precision: 0.01 }
+        { type: 'field_number', name: 'WEIGHT_METHOD', value: 0.5, min: 0, max: 1, precision: 0.01 }
       ],
       message2: '모델 ID %1',
       args2: [
@@ -430,7 +430,7 @@ const applyStrategyToWorkspace = (workspace: Blockly.WorkspaceSvg, config: Strat
       const factorBlock = workspace.newBlock('factor_item') as Blockly.BlockSvg & FactorBlock
       factorBlock.setFieldValue(factor.name, 'FACTOR')
       factorBlock.setFieldValue(factor.direction, 'DIRECTION')
-      factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT')
+      factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT_METHOD')
       if (factor.name === 'ML_MODEL') {
         factorBlock.setFieldValue(factor.model_id?.trim() ?? '', 'MODEL_ID')
       }
