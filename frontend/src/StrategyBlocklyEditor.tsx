@@ -303,7 +303,7 @@ const initializeBlocks = () => {
       ],
       message1: '가중 방식 %1',
       args1: [
-        { type: 'field_dropdown', name: 'WEIGHTING', options: WEIGHTING_OPTIONS }
+        { type: 'field_dropdown', name: 'WEIGHT_METHOD', options: WEIGHTING_OPTIONS }
       ],
       previousStatement: 'portfolio_section',
       colour: 165,
