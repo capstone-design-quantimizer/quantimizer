@@ -10,6 +10,11 @@ import {
   type ReactNode,
 } from 'react'
 import './App.css'
+import StrategyBlocklyEditor, {
+  DEFAULT_STRATEGY_CONFIG,
+  type StrategyConfig,
+  normalizeStrategyConfig,
+} from './StrategyBlocklyEditor'
 
 type PageKey = 'dashboard' | 'builder' | 'backtests' | 'strategies' | 'models' | 'community' | 'settings'
 
@@ -88,6 +93,7 @@ interface TokenResponse {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 const TOKEN_STORAGE_KEY = 'quantimizer.tokens'
+const NEW_STRATEGY_ID = '__new__'
 
 const ICONS: Record<string, string> = {
   home: '🏠',
@@ -99,6 +105,7 @@ const ICONS: Record<string, string> = {
   logout: '⎋',
   chart: '📈',
   upload: '📤',
+  download: '⬇️',
   edit: '✏️',
   trash: '🗑️',
   fork: '🔀',
@@ -575,70 +582,160 @@ const KPI = ({ label, value, sub }: { label: string; value: string | number; sub
   </div>
 )
 
-const BlocklyPlaceholder = () => (
-  <div className="blockly">
-    <div className="blockly__title">Blockly 전략 구성 캔버스</div>
-    <p className="blockly__description">
-      브라우저에서 직접 블록을 조립해 전략을 설계할 수 있는 캔버스 영역입니다.
-      <br />
-      데스크톱 환경에서 실제 Blockly 위젯을 연결하도록 확장할 수 있습니다.
-    </p>
-    <div className="blockly__grid">
-      {Array.from({ length: 6 }, (_, index) => (
-        <div key={index} className="blockly__block">
-          <span className="blockly__block-title">Block {index + 1}</span>
-          <span className="blockly__block-text">설정 요소</span>
-        </div>
-      ))}
-    </div>
-  </div>
-)
-
-const StrategyBuilder = ({ strategies, models, onRunBacktest }: { strategies: Strategy[]; models: MLModelItem[]; onRunBacktest: (params: { strategyId: string; startDate: string; endDate: string; initialCapital: number; mlModelId: string | null }) => Promise<Backtest> }) => {
-  const [strategyId, setStrategyId] = useState<string>('')
+const StrategyBuilder = ({
+  strategies,
+  models,
+  onRunBacktest,
+  onSaveStrategy,
+}: {
+  strategies: Strategy[]
+  models: MLModelItem[]
+  onRunBacktest: (params: { strategyId: string; startDate: string; endDate: string; initialCapital: number; mlModelId: string | null }) => Promise<Backtest>
+  onSaveStrategy: (params: { id?: string; name: string; description?: string | null; strategy_json: StrategyConfig }) => Promise<Strategy>
+}) => {
+  const [strategyId, setStrategyId] = useState<string>(NEW_STRATEGY_ID)
   const [start, setStart] = useState<string>(() => new Date(new Date().setFullYear(new Date().getFullYear() - 5)).toISOString().slice(0, 10))
   const [end, setEnd] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [capital, setCapital] = useState<number>(10_000_000)
   const [modelId, setModelId] = useState<string>('')
+  const [builderConfig, setBuilderConfig] = useState<StrategyConfig>(() => normalizeStrategyConfig(DEFAULT_STRATEGY_CONFIG))
+  const [builderName, setBuilderName] = useState<string>('')
+  const [builderDescription, setBuilderDescription] = useState<string>('')
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [pendingStrategyId, setPendingStrategyId] = useState<string | null>(null)
   const [result, setResult] = useState<Backtest | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (strategies.length > 0 && !strategies.some((item) => item.id === strategyId)) {
-      setStrategyId(strategies[0]?.id ?? '')
+    if (strategyId === NEW_STRATEGY_ID) {
+      return
     }
-  }, [strategies, strategyId])
+    const exists = strategies.some((item) => item.id === strategyId)
+    if (exists) {
+      if (pendingStrategyId === strategyId) {
+        setPendingStrategyId(null)
+      }
+      return
+    }
+    if (pendingStrategyId === strategyId) {
+      return
+    }
+    if (strategies.length === 0) {
+      setStrategyId(NEW_STRATEGY_ID)
+    } else {
+      setStrategyId(strategies[0].id)
+    }
+  }, [strategies, strategyId, pendingStrategyId])
 
-  const selectedStrategy = useMemo(() => strategies.find((item) => item.id === strategyId) ?? null, [strategies, strategyId])
+  const selectedStrategy = useMemo(
+    () => (strategyId === NEW_STRATEGY_ID ? null : strategies.find((item) => item.id === strategyId) ?? null),
+    [strategies, strategyId],
+  )
+
+  useEffect(() => {
+    if (strategyId === NEW_STRATEGY_ID) {
+      setBuilderConfig(normalizeStrategyConfig(DEFAULT_STRATEGY_CONFIG))
+      setBuilderName('')
+      setBuilderDescription('')
+      setResult(null)
+      setSuccessMessage(null)
+      setError(null)
+      return
+    }
+    if (selectedStrategy) {
+      setBuilderConfig(normalizeStrategyConfig(selectedStrategy.strategy_json))
+      setBuilderName(selectedStrategy.name)
+      setBuilderDescription(selectedStrategy.description ?? '')
+      setResult(null)
+      setSuccessMessage(null)
+      setError(null)
+      if (pendingStrategyId === selectedStrategy.id) {
+        setPendingStrategyId(null)
+      }
+    }
+  }, [strategyId, selectedStrategy, pendingStrategyId])
+
+  const handleConfigChange = useCallback(
+    (next: StrategyConfig) => {
+      setBuilderConfig(next)
+      setResult(null)
+      setSuccessMessage(null)
+      setError(null)
+    },
+    [setBuilderConfig, setResult, setSuccessMessage, setError],
+  )
 
   const handleCapitalChange = (event: ChangeEvent<HTMLInputElement>) => {
     const next = Number(event.target.value)
     setCapital(Number.isFinite(next) ? next : 0)
   }
 
+  const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setBuilderName(event.target.value)
+    setSuccessMessage(null)
+  }
+
+  const handleDescriptionChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setBuilderDescription(event.target.value)
+    setSuccessMessage(null)
+  }
+
+  const handleStrategySelect = (id: string) => {
+    setPendingStrategyId(null)
+    setStrategyId(id)
+  }
+
   const handleExport = () => {
-    if (!selectedStrategy) {
-      return
-    }
-    const blob = new Blob([JSON.stringify(selectedStrategy.strategy_json, null, 2)], { type: 'application/json' })
+    const exportName = (builderName.trim() || selectedStrategy?.name || 'strategy').replace(/\s+/g, '_')
+    const blob = new Blob([JSON.stringify(builderConfig, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${selectedStrategy.name.replace(/\s+/g, '_')}.json`
+    link.download = `${exportName}.json`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
   }
 
+  const handleSave = async () => {
+    const name = builderName.trim()
+    if (name === '') {
+      setError('전략 이름을 입력하세요.')
+      setSuccessMessage(null)
+      return
+    }
+    setSaving(true)
+    setError(null)
+    setSuccessMessage(null)
+    try {
+      const saved = await onSaveStrategy({
+        id: strategyId === NEW_STRATEGY_ID ? undefined : strategyId,
+        name,
+        description: builderDescription.trim() === '' ? null : builderDescription.trim(),
+        strategy_json: builderConfig,
+      })
+      setSuccessMessage('전략이 저장되었습니다.')
+      setPendingStrategyId(saved.id)
+      setStrategyId(saved.id)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '전략을 저장하지 못했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const runBacktest = async () => {
-    if (!strategyId) {
-      setError('실행할 전략을 선택하세요.')
+    if (!strategyId || strategyId === NEW_STRATEGY_ID) {
+      setError('백테스트를 실행하려면 저장된 전략을 선택하세요.')
+      setSuccessMessage(null)
       return
     }
     setIsRunning(true)
     setError(null)
+    setSuccessMessage(null)
     try {
       const data = await onRunBacktest({
         strategyId,
@@ -655,6 +752,14 @@ const StrategyBuilder = ({ strategies, models, onRunBacktest }: { strategies: St
     }
   }
 
+  const strategyOptions = useMemo(
+    () => [
+      { label: '새 전략 만들기', value: NEW_STRATEGY_ID },
+      ...strategies.map((item) => ({ label: item.name, value: item.id })),
+    ],
+    [strategies],
+  )
+
   return (
     <Card
       title="전략 빌더"
@@ -664,11 +769,15 @@ const StrategyBuilder = ({ strategies, models, onRunBacktest }: { strategies: St
           <div className="builder-fields">
             <label className="builder-field">
               <span>전략</span>
-              <Select
-                value={strategyId}
-                onChange={setStrategyId}
-                options={strategies.length > 0 ? strategies.map((item) => ({ label: item.name, value: item.id })) : [{ label: '등록된 전략이 없습니다', value: '' }]}
-              />
+              <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
+            </label>
+            <label className="builder-field">
+              <span>전략 이름</span>
+              <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
+            </label>
+            <label className="builder-field">
+              <span>설명</span>
+              <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="선택 입력" />
             </label>
             <label className="builder-field">
               <span>시작일</span>
@@ -693,11 +802,14 @@ const StrategyBuilder = ({ strategies, models, onRunBacktest }: { strategies: St
           </div>
 
           <div className="builder-buttons">
-            <Btn variant="ghost" onClick={handleExport} disabled={!selectedStrategy}>
-              {ICONS.save}
+            <Btn variant="primary" onClick={handleSave} disabled={saving}>
+              {saving ? '저장 중…' : `${ICONS.save} 전략 저장`}
+            </Btn>
+            <Btn variant="ghost" onClick={handleExport}>
+              {ICONS.download}
               JSON 내보내기
             </Btn>
-            <Btn variant="primary" onClick={runBacktest} disabled={isRunning || !strategyId}>
+            <Btn variant="secondary" onClick={runBacktest} disabled={isRunning || strategyId === NEW_STRATEGY_ID}>
               {isRunning ? '실행 중...' : `${ICONS.play} 백테스트 실행`}
             </Btn>
           </div>
@@ -706,21 +818,54 @@ const StrategyBuilder = ({ strategies, models, onRunBacktest }: { strategies: St
     >
       <div className="builder-layout">
         <div className="builder-canvas">
-          <BlocklyPlaceholder />
+          <div className="blockly">
+            <div className="blockly__title">Blockly 전략 구성 캔버스</div>
+            <p className="blockly__description">
+              Universe → Factors → Portfolio → Rebalancing 순으로 블록을 조합해 투자 전략을 완성하세요.
+            </p>
+            <StrategyBlocklyEditor value={builderConfig} onChange={handleConfigChange} />
+            <div className="blockly__grid">
+              <div className="blockly__block">
+                <span className="blockly__block-title">Universe</span>
+                <span className="blockly__block-text">시장과 기본 필터를 선택합니다.</span>
+              </div>
+              <div className="blockly__block">
+                <span className="blockly__block-title">Factors</span>
+                <span className="blockly__block-text">팩터 블록을 추가하여 점수를 계산하세요.</span>
+              </div>
+              <div className="blockly__block">
+                <span className="blockly__block-title">Portfolio</span>
+                <span className="blockly__block-text">상위 종목 수와 가중 방식을 지정합니다.</span>
+              </div>
+              <div className="blockly__block">
+                <span className="blockly__block-title">Rebalancing</span>
+                <span className="blockly__block-text">리밸런싱 주기를 설정합니다.</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="builder-report">
+          {successMessage && (
+            <div className="alert alert--success">
+              {ICONS.save} {successMessage}
+            </div>
+          )}
           {error && (
             <div className="alert alert--error">
               {ICONS.info} {error}
             </div>
           )}
+          <div className="builder-json">
+            <div className="builder-json__header">전략 JSON 미리보기</div>
+            <pre className="builder-json__code">{JSON.stringify(builderConfig, null, 2)}</pre>
+          </div>
           {result ? (
             <PerformanceReport result={result} />
           ) : (
             <div className="placeholder">
               <div className="placeholder__icon">{ICONS.chart}</div>
               <p className="placeholder__text">
-                상단의 <strong>백테스트 실행</strong> 버튼을 눌러 성과를 확인하세요.
+                전략을 저장한 뒤 <strong>백테스트 실행</strong> 버튼을 눌러 성과를 확인하세요.
               </p>
             </div>
           )}
@@ -1327,6 +1472,54 @@ const App = () => {
     [apiFetch],
   )
 
+  const handleSaveStrategy = useCallback(
+    async ({
+      id,
+      name,
+      description,
+      strategy_json,
+    }: {
+      id?: string
+      name: string
+      description?: string | null
+      strategy_json: StrategyConfig
+    }) => {
+      const payload = {
+        name,
+        description: description ?? null,
+        strategy_json,
+      }
+      const path = id ? `/strategies/${id}` : '/strategies'
+      const method = id ? 'PUT' : 'POST'
+      const response = await apiFetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        let message = id ? '전략을 수정하지 못했습니다.' : '전략을 생성하지 못했습니다.'
+        try {
+          const data = (await response.json()) as { detail?: string }
+          if (data?.detail) {
+            message = data.detail
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message)
+      }
+      const saved = (await response.json()) as Strategy
+      setStrategies((prev) => {
+        if (id) {
+          return prev.map((item) => (item.id === saved.id ? saved : item))
+        }
+        return [saved, ...prev.filter((item) => item.id !== saved.id)]
+      })
+      return saved
+    },
+    [apiFetch],
+  )
+
   const handleRenameStrategy = useCallback(
     async (id: string, name: string) => {
       const response = await apiFetch(`/strategies/${id}`, {
@@ -1486,7 +1679,14 @@ const App = () => {
           </div>
         )}
         {page === 'dashboard' && <Dashboard strategies={strategies} backtests={backtests} models={models} onOpenBacktest={setSelectedBacktest} />}
-        {page === 'builder' && <StrategyBuilder strategies={strategies} models={models} onRunBacktest={handleRunBacktest} />}
+        {page === 'builder' && (
+          <StrategyBuilder
+            strategies={strategies}
+            models={models}
+            onRunBacktest={handleRunBacktest}
+            onSaveStrategy={handleSaveStrategy}
+          />
+        )}
         {page === 'backtests' && <BacktestsPage backtests={backtests} strategies={strategies} onSelect={setSelectedBacktest} />}
         {page === 'strategies' && (
           <MyStrategies
