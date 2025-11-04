@@ -1489,6 +1489,7 @@ const App = () => {
         description: description ?? null,
         strategy_json,
       }
+      console.log("서버로 전송할 최종 데이터:", JSON.stringify(payload, null, 2));
       const path = id ? `/strategies/${id}` : '/strategies'
       const method = id ? 'PUT' : 'POST'
       const response = await apiFetch(path, {
