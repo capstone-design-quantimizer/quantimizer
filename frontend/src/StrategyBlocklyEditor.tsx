@@ -31,7 +31,7 @@ export interface FactorConfig {
 
 export interface PortfolioConfig {
   top_n: number
-  weighting: PortfolioWeighting
+  weight_method: PortfolioWeighting;
 }
 
 export interface RebalancingConfig {
@@ -54,7 +54,7 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
   factors: [],
   portfolio: {
     top_n: 20,
-    weighting: 'equal',
+    weight_method: 'equal',
   },
   rebalancing: {
     frequency: 'monthly',
@@ -173,9 +173,9 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
   if (isRecord(input.portfolio)) {
     const topN = Number(input.portfolio.top_n)
     base.portfolio.top_n = Number.isFinite(topN) && topN > 0 ? Math.floor(topN) : base.portfolio.top_n
-    const weighting = String(input.portfolio.weighting ?? base.portfolio.weighting) as PortfolioWeighting
-    if (WEIGHTING_OPTIONS.some(([, value]) => value === weighting)) {
-      base.portfolio.weighting = weighting
+    const weight_method = String(input.portfolio.weight_method ?? base.portfolio.weight_method) as PortfolioWeighting
+    if (WEIGHTING_OPTIONS.some(([, value]) => value === weight_method)) {
+      base.portfolio.weight_method = weight_method
     }
   }
 
@@ -385,9 +385,9 @@ const extractStrategyFromWorkspace = (workspace: Blockly.WorkspaceSvg): Strategy
   if (portfolioBlock) {
     const topN = Number(portfolioBlock.getFieldValue('TOP_N'))
     config.portfolio.top_n = Number.isFinite(topN) && topN > 0 ? Math.floor(topN) : config.portfolio.top_n
-    const weighting = portfolioBlock.getFieldValue('WEIGHTING') as PortfolioWeighting
-    if (WEIGHTING_OPTIONS.some(([, value]) => value === weighting)) {
-      config.portfolio.weighting = weighting
+    const weight_method = portfolioBlock.getFieldValue('WEIGHT_METHOD') as PortfolioWeighting
+    if (WEIGHTING_OPTIONS.some(([, value]) => value === weight_method)) {
+      config.portfolio.weight_method = weight_method 
     }
   }
 
@@ -447,7 +447,7 @@ const applyStrategyToWorkspace = (workspace: Blockly.WorkspaceSvg, config: Strat
 
     const portfolioBlock = workspace.newBlock('portfolio_settings') as Blockly.BlockSvg
     portfolioBlock.setFieldValue(String(config.portfolio.top_n ?? 20), 'TOP_N')
-    portfolioBlock.setFieldValue(config.portfolio.weighting, 'WEIGHTING')
+    portfolioBlock.setFieldValue(config.portfolio.weight_method, 'WEIGHT_METHOD')
     portfolioBlock.initSvg()
     portfolioBlock.render()
     root.getInput('PORTFOLIO')?.connection?.connect(portfolioBlock.previousConnection)
