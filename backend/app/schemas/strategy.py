@@ -2,14 +2,26 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import List, Optional, Dict, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class StrategyBase(BaseModel):
     name: str
-    description: str | None = None
-    strategy_json: dict = Field(default_factory=dict)
+    description: Optional[str] = None
+    strategy_json: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("strategy_json")
+    @classmethod
+    def validate_strategy_json(cls, v: Dict[str, Any]):
+        try:
+            factors = v.get("definition", {}).get("factors", [])
+            if not factors:
+                raise ValueError("At least one factor must be supplied")
+        except Exception:
+            raise ValueError("Strategy JSON must include 'definition.factors' with at least one factor")
+        return v
 
 
 class StrategyCreate(StrategyBase):
@@ -17,9 +29,19 @@ class StrategyCreate(StrategyBase):
 
 
 class StrategyUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    strategy_json: dict | None = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    strategy_json: Optional[Dict[str, Any]] = None
+
+    @field_validator("strategy_json")
+    @classmethod
+    def validate_strategy_json_on_update(cls, v: Optional[Dict[str, Any]]):
+        if v is None:
+            return v
+        factors = v.get("definition", {}).get("factors", [])
+        if not factors:
+            raise ValueError("At least one factor must be supplied")
+        return v
 
 
 class StrategyRead(StrategyBase):
@@ -28,10 +50,9 @@ class StrategyRead(StrategyBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StrategyListResponse(BaseModel):
     total: int
-    items: list[StrategyRead]
+    items: List[StrategyRead]

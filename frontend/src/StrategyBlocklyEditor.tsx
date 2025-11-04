@@ -198,19 +198,35 @@ const initializeBlocks = () => {
   blocksInitialized = true
 
   Blockly.Extensions.register('factor_item_extension', function (this: FactorBlock) {
-    const updateModelVisibility = () => {
-      if (!this.workspace || this.isInFlyout) return
-      const shouldShow = this.getFieldValue('FACTOR') === 'ML_MODEL'
-      const input = this.getInput('MODEL')
-      if (input) {
-        input.setVisible(shouldShow)
-      }
-      this.render()
+  const self = this as FactorBlock
+
+  const updateModelVisibility = () => {
+    const input = self.getInput('MODEL')
+    if (!input) return
+    const shouldShow = self.getFieldValue('FACTOR') === 'ML_MODEL'
+    if (input.isVisible() === shouldShow) return
+    Blockly.Events.disable()
+    try {
+      input.setVisible(shouldShow)
+      if (self.rendered) self.render()
+    } finally {
+      Blockly.Events.enable()
     }
-    this.updateModelVisibility = updateModelVisibility
-    this.setOnChange(() => updateModelVisibility())
+  }
+
+  self.updateModelVisibility = updateModelVisibility
+  updateModelVisibility()
+
+  self.setOnChange((e: any) => {
+    if (!e) return
+    if (e.type !== Blockly.Events.BLOCK_CHANGE) return
+    if (e.blockId !== self.id) return
+    if (e.element !== 'field') return
+    if (e.name !== 'FACTOR') return
     updateModelVisibility()
   })
+})
+
 
   Blockly.defineBlocksWithJsonArray([
     {
