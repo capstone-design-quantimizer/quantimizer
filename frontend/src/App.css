@@ -191,6 +191,137 @@ body {
   margin-top: 16px;
 }
 
+/* ===============================================
+   Builder 영역 - 완전히 재구성된 반응형 레이아웃
+   제목: 좌측 상단 한 줄
+   필드: 2줄 (1행: 3개, 2행: 4개)
+   버튼: 우측 한 줄
+   =============================================== */
+
+/* 전체 빌더 컨트롤 컨테이너 */
+.builder-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 제목: 좌측 상단에 한 줄로 표시 */
+.builder-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+/* 필드와 버튼을 묶는 메인 레이아웃 */
+.builder-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* 필드 그룹: 2줄로 배치 */
+.builder-fields-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+  flex: 1;
+}
+
+.builder-fields-row {
+  display: contents;
+}
+
+/* 개별 필드 */
+.builder-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.builder-field span {
+  font-weight: 600;
+}
+
+/* 버튼 그룹: 우측에 한 줄로 정렬 */
+.builder-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: fit-content;
+}
+
+/* ===== 데스크톱 (1200px 이상): 최적 레이아웃 ===== */
+@media (min-width: 1200px) {
+  .builder-main {
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .builder-fields-group {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+    gap: 12px 16px;
+  }
+
+  .builder-buttons {
+    justify-content: flex-end;
+    white-space: nowrap;
+  }
+
+  .builder-buttons .btn {
+    white-space: nowrap;
+  }
+}
+
+/* ===== 태블릿 (768px ~ 1199px): 2열 필드 + 버튼 아래 ===== */
+@media (max-width: 1199px) and (min-width: 768px) {
+  .builder-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .builder-fields-group {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 16px;
+  }
+
+  .builder-buttons {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+/* ===== 모바일 (767px 이하): 1열 필드 + 버튼 자동 배치 ===== */
+@media (max-width: 767px) {
+  .builder-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .builder-fields-group {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .builder-buttons {
+    justify-content: stretch;
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .builder-buttons .btn {
+    width: 100%;
+  }
+}
+
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
@@ -390,88 +521,6 @@ body {
   margin-top: 10px;
   font-size: 0.82rem;
   color: var(--text-muted);
-}
-
-/* ===============================================
-   Builder 영역 - 반응형 레이아웃 개선
-   전략 이름, 설명, 시작/종료일 필드와 버튼의 줄맞춤 보장
-   =============================================== */
-
-/* 개선된 반응형 그리드 구조: 데스크톱 3열 → 태블릿 2열 → 모바일 1열 */
-.builder-controls {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  align-items: end;
-}
-
-/* 필드 컨테이너: 반응형으로 3열/2열/1열 변환 */
-.builder-fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(200px, 1fr));
-  gap: 12px 16px;
-  align-items: end;
-  width: 100%;
-}
-
-.builder-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-.builder-field span {
-  font-weight: 600;
-}
-
-/* 버튼 컨테이너: flex로 유연한 배치 */
-.builder-buttons {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-/* 데스크톱: 필드와 버튼 한 줄 배치 */
-@media (min-width: 1200px) {
-  .builder-controls {
-    grid-template-columns: 1fr auto;
-    align-items: end;
-  }
-  .builder-fields {
-    grid-template-columns: repeat(3, minmax(200px, 1fr));
-  }
-  .builder-buttons {
-    justify-content: flex-end;
-  }
-}
-
-/* 태블릿: 필드 2열, 버튼 아래 정렬 */
-@media (max-width: 1199px) and (min-width: 768px) {
-  .builder-fields {
-    grid-template-columns: repeat(2, minmax(180px, 1fr));
-  }
-  .builder-buttons {
-    justify-content: flex-start;
-  }
-}
-
-/* 모바일: 필드 1열, 버튼 자동 배치 */
-@media (max-width: 767px) {
-  .builder-fields {
-    grid-template-columns: 1fr;
-  }
-  .builder-buttons {
-    justify-content: flex-start;
-    width: 100%;
-  }
-  .builder-buttons .btn {
-    flex: 1;
-    min-width: 100px;
-  }
 }
 
 /* ---------- Builder layout & panels ---------- */
