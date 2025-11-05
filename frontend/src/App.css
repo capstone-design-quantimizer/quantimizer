@@ -221,16 +221,28 @@ body {
   align-items: flex-start;
 }
 
-/* 필드 그룹: 2줄로 배치 */
+/* 필드 그룹을 두 개의 행으로 명확히 구분 */
 .builder-fields-group {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px 16px;
   flex: 1;
 }
 
-.builder-fields-row {
-  display: contents;
+/* 첫 번째 행: 전략, 전략 이름, 설명 (3개 필드) */
+.builder-fields-row:first-child {
+  grid-column: 1 / 4;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+}
+
+/* 두 번째 행: 시작일, 종료일, 초기자금, 모델 (4개 필드) */
+.builder-fields-row:nth-child(2) {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px 16px;
 }
 
 /* 개별 필드 */
@@ -265,7 +277,21 @@ body {
   }
 
   .builder-fields-group {
-    grid-template-columns: repeat(3, minmax(160px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px 16px;
+  }
+
+  .builder-fields-row:first-child {
+    grid-column: 1 / 4;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px 16px;
+  }
+
+  .builder-fields-row:nth-child(2) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px 16px;
   }
 
@@ -292,6 +318,20 @@ body {
     gap: 12px 16px;
   }
 
+  .builder-fields-row:first-child {
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 16px;
+  }
+
+  .builder-fields-row:nth-child(2) {
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 16px;
+  }
+
   .builder-buttons {
     justify-content: flex-start;
     width: 100%;
@@ -307,6 +347,20 @@ body {
   }
 
   .builder-fields-group {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .builder-fields-row:first-child {
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .builder-fields-row:nth-child(2) {
+    grid-column: auto;
+    display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
   }
