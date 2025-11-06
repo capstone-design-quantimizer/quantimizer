@@ -192,10 +192,7 @@ body {
 }
 
 /* ===============================================
-   Builder 영역 - 완전히 재구성된 반응형 레이아웃
-   제목: 좌측 상단 한 줄
-   필드: 2줄 (1행: 3개, 2행: 4개)
-   버튼: 우측 한 줄
+   Builder 영역 - 두 줄 레이아웃 (Row 1: 3개, Row 2: 4개)
    =============================================== */
 
 /* 전체 빌더 컨트롤 컨테이너 */
@@ -215,34 +212,31 @@ body {
 
 /* 필드와 버튼을 묶는 메인 레이아웃 */
 .builder-main {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   align-items: flex-start;
 }
 
-/* 필드 그룹을 두 개의 행으로 명확히 구분 */
+/* 필드 그룹을 명확한 두 줄로 구분 */
 .builder-fields-group {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px 16px;
-  flex: 1;
+  display: contents;
 }
 
 /* 첫 번째 행: 전략, 전략 이름, 설명 (3개 필드) */
 .builder-fields-row:first-child {
-  grid-column: 1 / 4;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px 16px;
+  width: 100%;
 }
 
 /* 두 번째 행: 시작일, 종료일, 초기자금, 모델 (4개 필드) */
 .builder-fields-row:nth-child(2) {
-  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px 16px;
+  width: 100%;
 }
 
 /* 개별 필드 */
@@ -262,113 +256,68 @@ body {
 .builder-buttons {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
-  min-width: fit-content;
+  width: 100%;
 }
 
-/* ===== 데스크톱 (1200px 이상): 최적 레이아웃 ===== */
-@media (min-width: 1200px) {
+/* ===== 데스크톱 (1024px 이상): 3개 + 4개 필드 레이아웃 ===== */
+@media (min-width: 1024px) {
   .builder-main {
-    grid-template-columns: 1fr auto;
-    gap: 24px;
-    align-items: flex-start;
-  }
-
-  .builder-fields-group {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px 16px;
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
   }
 
   .builder-fields-row:first-child {
-    grid-column: 1 / 4;
-    display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 12px 16px;
   }
 
   .builder-fields-row:nth-child(2) {
-    grid-column: 1 / -1;
-    display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 12px 16px;
   }
 
   .builder-buttons {
-    justify-content: flex-end;
-    white-space: nowrap;
-  }
-
-  .builder-buttons .btn {
-    white-space: nowrap;
-  }
-}
-
-/* ===== 태블릿 (768px ~ 1199px): 2열 필드 + 버튼 아래 ===== */
-@media (max-width: 1199px) and (min-width: 768px) {
-  .builder-main {
-    grid-template-columns: 1fr;
-    gap: 16px;
-    align-items: stretch;
-  }
-
-  .builder-fields-group {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px 16px;
-  }
-
-  .builder-fields-row:first-child {
-    grid-column: auto;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px 16px;
-  }
-
-  .builder-fields-row:nth-child(2) {
-    grid-column: auto;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px 16px;
-  }
-
-  .builder-buttons {
     justify-content: flex-start;
-    width: 100%;
   }
 }
 
-/* ===== 모바일 (767px 이하): 1열 필드 + 버튼 자동 배치 ===== */
-@media (max-width: 767px) {
-  .builder-main {
-    grid-template-columns: 1fr;
-    gap: 16px;
-    align-items: stretch;
-  }
-
-  .builder-fields-group {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
+/* ===== 태블릿 (768px ~ 1023px): 2열 필드 레이아웃 ===== */
+@media (max-width: 1023px) and (min-width: 768px) {
   .builder-fields-row:first-child {
-    grid-column: auto;
-    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 16px;
+  }
+
+  .builder-fields-row:nth-child(2) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 16px;
+  }
+
+  .builder-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* ===== 모바일 (767px 이하): 1열 필드 레이아웃 ===== */
+@media (max-width: 767px) {
+  .builder-fields-row:first-child {
     grid-template-columns: 1fr;
     gap: 12px;
   }
 
   .builder-fields-row:nth-child(2) {
-    grid-column: auto;
-    display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
   }
 
   .builder-buttons {
-    justify-content: stretch;
-    width: 100%;
     flex-direction: column;
+    width: 100%;
   }
 
   .builder-buttons .btn {
