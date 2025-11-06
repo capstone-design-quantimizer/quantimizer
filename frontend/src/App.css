@@ -200,41 +200,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-/* 제목: 좌측 상단에 한 줄로 표시 */
-.builder-title {
-  font-weight: 600;
-  font-size: 1.1rem;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-/* 필드와 버튼을 묶는 메인 레이아웃 */
-.builder-main {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-/* 필드 그룹을 명확한 두 줄로 구분 */
-.builder-fields-group {
-  display: contents;
-}
-
-/* 첫 번째 행: 전략, 전략 이름, 설명 (3개 필드) */
-.builder-fields-row:first-child {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px 16px;
   width: 100%;
 }
 
-/* 두 번째 행: 시작일, 종료일, 초기자금, 모델 (4개 필드) */
-.builder-fields-row:nth-child(2) {
+/* 모든 필드를 감싸는 그리드 컨테이너 */
+.builder-fields {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 12px 16px;
   width: 100%;
 }
@@ -252,7 +223,7 @@ body {
   font-weight: 600;
 }
 
-/* 버튼 그룹: 우측에 한 줄로 정렬 */
+/* 버튼 그룹: 필드 아래에 배치 */
 .builder-buttons {
   display: flex;
   align-items: center;
@@ -264,53 +235,32 @@ body {
 
 /* ===== 데스크톱 (1024px 이상): 3개 + 4개 필드 레이아웃 ===== */
 @media (min-width: 1024px) {
-  .builder-main {
-    flex-direction: column;
-    gap: 16px;
-    align-items: stretch;
+  .builder-fields {
+    /* 12컬럼 그리드를 사용하여 유연한 행 배치 */
+    grid-template-columns: repeat(12, 1fr);
   }
 
-  .builder-fields-row:first-child {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px 16px;
+  /* 첫 번째 줄의 3개 아이템: 각각 4컬럼 차지 (3 * 4 = 12) */
+  .builder-fields .builder-field:nth-child(-n + 3) {
+    grid-column: span 4;
   }
 
-  .builder-fields-row:nth-child(2) {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px 16px;
-  }
-
-  .builder-buttons {
-    justify-content: flex-start;
+  /* 두 번째 줄의 4개 아이템: 각각 3컬럼 차지 (4 * 3 = 12) */
+  .builder-fields .builder-field:nth-child(n + 4) {
+    grid-column: span 3;
   }
 }
 
 /* ===== 태블릿 (768px ~ 1023px): 2열 필드 레이아웃 ===== */
 @media (max-width: 1023px) and (min-width: 768px) {
-  .builder-fields-row:first-child {
+  .builder-fields {
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px 16px;
-  }
-
-  .builder-fields-row:nth-child(2) {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px 16px;
-  }
-
-  .builder-buttons {
-    flex-direction: row;
-    flex-wrap: wrap;
   }
 }
 
 /* ===== 모바일 (767px 이하): 1열 필드 레이아웃 ===== */
 @media (max-width: 767px) {
-  .builder-fields-row:first-child {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .builder-fields-row:nth-child(2) {
+  .builder-fields {
     grid-template-columns: 1fr;
     gap: 12px;
   }
@@ -324,6 +274,7 @@ body {
     width: 100%;
   }
 }
+
 
 /* ---------- Buttons ---------- */
 .btn {
