@@ -203,7 +203,7 @@ def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, 
         where.append("s.market = :market")
         params["market"] = spec.universe.market
     if spec.universe.min_market_cap is not None:
-        where.append("s.market_cap >= :min_market_cap")
+        where.append("COALESCE(s.market_cap, 0) >= :min_market_cap")
         params["min_market_cap"] = spec.universe.min_market_cap
     if spec.universe.exclude_tickers:
         where.append("s.ticker <> ALL(:exclude_tickers)")
