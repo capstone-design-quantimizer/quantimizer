@@ -9,10 +9,15 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: docker
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: quantimizer-backend
-          __path__: /var/lib/docker/containers/*/*.log
+  - job_name: quantimizer
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        regex: "/?(quant-backend|quant-frontend)$"
+        action: keep
+
+    pipeline_stages:
+      - docker: {}
+
