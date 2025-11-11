@@ -1,33 +1,25 @@
 from __future__ import annotations
 
-import logging
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.logging_config import setup_logging
 from app.core.config import get_settings
 from app.db.session import Base, engine
 from app.routers import auth, backtests, community, ml_models, strategies
 
-settings = get_settings()
+log_level = os.environ.get("LOG_LEVEL", "INFO")
+setup_logging(service_name="quantimizer-backend", level=log_level)
 
+settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
-log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-try:
-    log_level = getattr(logging, log_level_name)
-except AttributeError:
-    log_level = logging.INFO
-logging.basicConfig(
-    level=log_level,
-    format="%(asctime)s %(levelname)s %(name)s - %(message)s", 
-)
-
 origins = [
-    "http://localhost:5173",   # Vite dev 서버
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "http://4.190.161.33",     # 배포된 프론트 주소 
-    "https://4.190.161.33",    # HTTPS 접속 시
+    "http://4.190.161.33",
+    "https://4.190.161.33",
 ]
 
 app.add_middleware(
