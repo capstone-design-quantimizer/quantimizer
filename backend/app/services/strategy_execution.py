@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 import uuid
+import logging
+import time
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Iterable, Sequence
@@ -16,6 +18,7 @@ from app.models.backtest import BacktestResult
 from app.models.ml_model import MLModel
 from app.services.ml_inference import get_onnx_session, score_dataframe
 
+logger = logging.getLogger(__name__)
 
 # ---------- Specs ----------
 @dataclass(slots=True)
@@ -244,6 +247,10 @@ SELECT *
 FROM scored
 ORDER BY event_date ASC, ticker ASC;
 """.strip()
+    
+    logger.info(
+        "Generated scored SQL", extra={"sql": sql, "params": params, "used_factors": used}
+    )
 
     return sql, params, used
 
@@ -251,7 +258,14 @@ ORDER BY event_date ASC, ticker ASC;
 def _fetch_scored_frame(db: Session, sql: str, params: dict[str, Any]) -> pd.DataFrame:
     bind = db.get_bind()
     with bind.connect() as conn:
+        start_time = time.perf_counter()
+        logger.info("Executing scored SQL", extra={"sql": sql, "params": params})
         df = pd.read_sql_query(text(sql), conn, params=params)
+        elapsed = time.perf_counter() - start_time
+        logger.info(
+            "Executed scored SQL",
+            extra={"rows": len(df), "duration": elapsed},
+        )
     if df.empty:
         raise StrategyExecutionError("No market data available for the requested period")
     df["event_date"] = pd.to_datetime(df["event_date"])
