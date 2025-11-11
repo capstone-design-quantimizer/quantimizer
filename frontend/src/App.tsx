@@ -1114,45 +1114,140 @@ const ModelsPage = ({ models, onUpload, onDelete }: { models: MLModelItem[]; onU
   )
 }
 
-const CommunityPage = ({ items, onFork }: { items: CommunityFeedItem[]; onFork: (id: string) => Promise<void> }) => {
+const CommunityPage = ({
+  strategies,
+  items,
+  onFork,
+  onCreate,
+}: {
+  strategies: Strategy[]
+  items: CommunityFeedItem[]
+  onFork: (id: string) => Promise<void>
+  onCreate: (params: { strategyId: string; title: string; content: string }) => Promise<void>
+}) => {
   const [detail, setDetail] = useState<CommunityFeedItem | null>(null)
+  const [open, setOpen] = useState(false)
+  const [strategyId, setStrategyId] = useState<string>(() => (strategies[0]?.id ?? ''))
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  // ensure selected strategy remains valid when strategies list changes
+  useEffect(() => {
+    if (strategies.length > 0 && !strategies.find((s) => s.id === strategyId)) {
+      setStrategyId(strategies[0].id)
+    }
+  }, [strategies, strategyId])
+
+  const handleSubmit = async () => {
+    if (submitting) return
+    const trimmedTitle = title.trim()
+    const trimmedContent = content.trim()
+    if (!strategyId) {
+      window.alert('게시할 전략을 선택하세요.')
+      return
+    }
+    if (!trimmedTitle) {
+      window.alert('제목을 입력하세요.')
+      return
+    }
+    if (!trimmedContent) {
+      window.alert('내용을 입력하세요.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await onCreate({ strategyId, title: trimmedTitle, content: trimmedContent })
+      window.alert('게시글이 등록되었습니다.')
+      setOpen(false)
+      setTitle('')
+      setContent('')
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '게시글을 등록하지 못했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const strategyOptions = strategies.map((item) => ({ label: item.name, value: item.id }))
 
   return (
-    <div className="community-grid">
-      {items.map((item) => (
-        <Card
-          key={item.id}
-          title={item.title}
-          icon={ICONS.share}
-          right={<span className="card__meta">작성자 {item.author_username}</span>}
-        >
-          <div className="community-meta">게시일 {toDateLabel(item.created_at)}</div>
-          <p className="community-content">{item.content}</p>
-          <div className="card__actions">
-            <Btn variant="ghost" onClick={() => setDetail(item)}>
-              JSON 보기
-            </Btn>
-            <Btn
-              variant="secondary"
-              onClick={async () => {
-                try {
-                  await onFork(item.id)
-                  window.alert('전략이 내 전략 목록에 추가되었습니다.')
-                } catch (error) {
-                  window.alert(error instanceof Error ? error.message : '전략 복사에 실패했습니다.')
-                }
-              }}
-            >
-              {ICONS.fork} 복사
-            </Btn>
-          </div>
-        </Card>
-      ))}
-
+    <>
+      <div className="community-header">
+        <div className="community-header__left">
+          <h2 className="community-header__title">커뮤니티</h2>
+        </div>
+        <div className="community-header__right">
+          <Btn variant="primary" onClick={() => setOpen(true)}>
+            + 새 글
+          </Btn>
+        </div>
+      </div>
+      <div className="community-grid">
+        {items.map((item) => (
+          <Card
+            key={item.id}
+            title={item.title}
+            icon={ICONS.share}
+            right={<span className="card__meta">작성자 {item.author_username}</span>}
+          >
+            <div className="community-meta">게시일 {toDateLabel(item.created_at)}</div>
+            <p className="community-content">{item.content}</p>
+            <div className="card__actions">
+              <Btn variant="ghost" onClick={() => setDetail(item)}>
+                JSON 보기
+              </Btn>
+              <Btn
+                variant="secondary"
+                onClick={async () => {
+                  try {
+                    await onFork(item.id)
+                    window.alert('전략이 내 전략 목록에 추가되었습니다.')
+                  } catch (error) {
+                    window.alert(error instanceof Error ? error.message : '전략 복사에 실패했습니다.')
+                  }
+                }}
+              >
+                {ICONS.fork} 복사
+              </Btn>
+            </div>
+          </Card>
+        ))}
+      </div>
       <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={`전략 JSON: ${detail?.title ?? ''}`}>
         {detail && <pre className="modal-json">{JSON.stringify(detail.strategy, null, 2)}</pre>}
       </Modal>
-    </div>
+      <Modal open={open} onClose={() => setOpen(false)} title="새 글 작성">
+        <div className="form">
+          <label className="field">
+            <span className="field__label">전략 선택</span>
+            <Select options={strategyOptions} value={strategyId} onChange={(value) => setStrategyId(value)} />
+          </label>
+          <label className="field">
+            <span className="field__label">제목</span>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="제목을 입력하세요" />
+          </label>
+          <label className="field">
+            <span className="field__label">내용</span>
+            <textarea
+              className="textarea"
+              rows={6}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="내용을 입력하세요"
+            />
+          </label>
+          <div className="dialog-actions">
+            <Btn variant="secondary" onClick={() => setOpen(false)}>
+              취소
+            </Btn>
+            <Btn variant="primary" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? '등록 중…' : '등록'}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+    </>
   )
 }
 
@@ -1620,6 +1715,31 @@ const App = () => {
     [apiFetch],
   )
 
+  const handleCreateCommunityPost = useCallback(
+    async ({ strategyId, title, content }: { strategyId: string; title: string; content: string }) => {
+      const response = await apiFetch('/community/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy_id: strategyId, title, content }),
+      })
+      if (!response.ok) {
+        let message = '게시글을 등록하지 못했습니다.'
+        try {
+          const data = (await response.json()) as { detail?: string }
+          if (data?.detail) {
+            message = data.detail
+          }
+        } catch {
+          // ignore
+        }
+        throw new Error(message)
+      }
+      // 성공 시 커뮤니티 목록 새로고침
+      await loadCommunity()
+    },
+    [apiFetch, loadCommunity],
+  )
+
   const handleLogout = useCallback(() => {
     setTokens(null)
     setPage('builder')
@@ -1699,7 +1819,14 @@ const App = () => {
           />
         )}
         {page === 'models' && <ModelsPage models={models} onUpload={handleUploadModel} onDelete={handleDeleteModel} />}
-        {page === 'community' && <CommunityPage items={communityItems} onFork={handleForkCommunity} />}
+        {page === 'community' && (
+          <CommunityPage
+            strategies={strategies}
+            items={communityItems}
+            onFork={handleForkCommunity}
+            onCreate={handleCreateCommunityPost}
+          />
+        )}
         {page === 'settings' && <SettingsPage />}
       </main>
 
