@@ -8,6 +8,8 @@ on:
       - "frontend/**"
       - "docker-compose.yml"
       - ".github/workflows/deploy.yml"
+      - "loki-config.yaml"
+      - "promtail-config.yaml"
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -80,6 +82,8 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${VM_USER}@${VM_HOST} "mkdir -p ${VM_WORKDIR} && mkdir -p ${VM_WORKDIR}/backend"
           scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no docker-compose.yml ${VM_USER}@${VM_HOST}:${VM_WORKDIR}/docker-compose.yml
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no loki-config.yaml ${VM_USER}@${VM_HOST}:${VM_WORKDIR}/loki-config.yaml
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no promtail-config.yaml ${VM_USER}@${VM_HOST}:${VM_WORKDIR}/promtail-config.yaml
           if [ -f backend/.env ]; then
             scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no backend/.env ${VM_USER}@${VM_HOST}:${VM_WORKDIR}/backend/.env
           fi
