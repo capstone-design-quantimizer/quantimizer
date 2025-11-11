@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,10 +8,9 @@ from app.core.config import get_settings
 from app.db.session import Base, engine
 from app.routers import auth, backtests, community, ml_models, strategies
 
-log_level = os.environ.get("LOG_LEVEL", "INFO")
-setup_logging(service_name="quantimizer-backend", level=log_level)
-
+setup_logging()
 settings = get_settings()
+
 app = FastAPI(title=settings.app_name)
 
 origins = [

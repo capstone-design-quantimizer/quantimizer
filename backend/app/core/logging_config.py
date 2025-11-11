@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import os
 from typing import Any, Dict
 
 try:
-    from pythonjsonlogger import jsonlogger
+    from pythonjsonlogger import jsonlogger  
     HAS_JSON = True
 except Exception:
     HAS_JSON = False
@@ -22,7 +23,7 @@ def _build_json_formatter() -> logging.Formatter:
     class _Fallback(logging.Formatter):
         def format(self, record: logging.LogRecord) -> str:
             base: Dict[str, Any] = {
-                "ts": self.formatTime(record, self.datefmt),
+                "ts": getattr(record, "asctime", None),
                 "level": record.levelname,
                 "logger": record.name,
                 "msg": record.getMessage(),
@@ -32,7 +33,9 @@ def _build_json_formatter() -> logging.Formatter:
                 "thread": record.threadName,
             }
             for k, v in record.__dict__.items():
-                if k not in base and k not in ("args", "msg", "message", "exc_text", "exc_info", "stack_info"):
+                if k in ("args", "msg", "message", "exc_text", "exc_info", "stack_info"):
+                    continue
+                if k not in base:
                     try:
                         json.dumps(v)
                         base[k] = v
@@ -43,9 +46,10 @@ def _build_json_formatter() -> logging.Formatter:
     return _Fallback()
 
 
-def configure_logging(service_name: str, level: str | int = "INFO") -> None:
-    if isinstance(level, str):
-        level = getattr(logging, level.upper(), logging.INFO)
+def setup_logging() -> None:
+    service_name = os.getenv("SERVICE_NAME", "app")
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
 
     root = logging.getLogger()
     root.setLevel(level)
@@ -63,14 +67,10 @@ def configure_logging(service_name: str, level: str | int = "INFO") -> None:
         lg.handlers = []
         lg.setLevel(level)
 
-    class _ServiceTagFilter(logging.Filter):
-        def __init__(self, service: str) -> None:
-            super().__init__()
-            self._service = service
-
+    class _ServiceTag(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:
             if not hasattr(record, "service"):
-                setattr(record, "service", self._service)
+                setattr(record, "service", service_name)
             return True
 
-    root.addFilter(_ServiceTagFilter(service_name))
+    root.addFilter(_ServiceTag())
