@@ -21,7 +21,12 @@ services:
     image: grafana/loki:2.9.6
     container_name: loki
     restart: always
-    command: -config.file=/etc/loki/config.yaml
+    command: 
+      - sh
+      - -c
+      - |
+        mkdir -p /loki/index /loki/cache /loki/chunks
+        exec loki -config.file=/etc/loki/config.yaml
     ports:
       - "3100:3100"
     volumes:
