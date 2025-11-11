@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import logging
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,6 +12,16 @@ from app.routers import auth, backtests, community, ml_models, strategies
 settings = get_settings()
 
 app = FastAPI(title=settings.app_name)
+
+log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+try:
+    log_level = getattr(logging, log_level_name)
+except AttributeError:
+    log_level = logging.INFO
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s", 
+)
 
 origins = [
     "http://localhost:5173",   # Vite dev 서버
