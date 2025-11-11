@@ -71,7 +71,7 @@ jobs:
           mkdir -p backend
           cat <<EOF > backend/.env
           DATABASE_URL=${{ secrets.DATABASE_URL }}
-          AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION }}
           JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
           EOF
       - name: Create workdir and copy files
