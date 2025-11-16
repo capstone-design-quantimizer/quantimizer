@@ -3,9 +3,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.community import CommunityPost
+from app.models.backtest import BacktestResult
 from app.models.strategy import Strategy
 from app.schemas.community import CommunityPostCreate
 from app.services.strategies import fork_strategy, get_strategy
@@ -26,7 +28,15 @@ def create_post(db: Session, author_id: uuid.UUID, post_in: CommunityPostCreate)
 
 
 def list_posts(db: Session) -> list[CommunityPost]:
-    return db.query(CommunityPost).order_by(CommunityPost.created_at.desc()).all()
+    return (
+        db.query(CommunityPost)
+        .options(
+            joinedload(CommunityPost.author),
+            joinedload(CommunityPost.strategy),
+        )
+        .order_by(CommunityPost.created_at.desc())
+        .all()
+    )
 
 
 def get_post(db: Session, post_id: uuid.UUID) -> CommunityPost:
@@ -39,3 +49,39 @@ def get_post(db: Session, post_id: uuid.UUID) -> CommunityPost:
 def fork_post_strategy(db: Session, current_user_id: uuid.UUID, post: CommunityPost) -> Strategy:
     source_strategy = post.strategy
     return fork_strategy(db, current_user_id, source_strategy)
+
+
+def get_last_backtest(db: Session, strategy_id: uuid.UUID) -> BacktestResult | None:
+    return (
+        db.query(BacktestResult)
+        .filter(BacktestResult.strategy_id == strategy_id)
+        .order_by(BacktestResult.created_at.desc())
+        .first()
+    )
+
+
+def get_last_backtests(db: Session, strategy_ids: set[uuid.UUID]) -> dict[uuid.UUID, BacktestResult]:
+    if not strategy_ids:
+        return {}
+
+    latest_subquery = (
+        db.query(
+            BacktestResult.strategy_id.label("strategy_id"),
+            func.max(BacktestResult.created_at).label("created_at"),
+        )
+        .filter(BacktestResult.strategy_id.in_(strategy_ids))
+        .group_by(BacktestResult.strategy_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(BacktestResult)
+        .join(
+            latest_subquery,
+            (BacktestResult.strategy_id == latest_subquery.c.strategy_id)
+            & (BacktestResult.created_at == latest_subquery.c.created_at),
+        )
+        .all()
+    )
+
+    return {row.strategy_id: row for row in rows}
