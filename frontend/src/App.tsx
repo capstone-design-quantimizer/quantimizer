@@ -6,13 +6,17 @@ import {
   useState,
   type ButtonHTMLAttributes,
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from 'react'
 import './App.css'
 import StrategyBlocklyEditor, {
   DEFAULT_STRATEGY_CONFIG,
+  type FactorName,
+  type FactorDirection,
   type StrategyConfig,
+  type StrategyWorkspaceAPI,
   normalizeStrategyConfig,
 } from './StrategyBlocklyEditor'
 
@@ -121,6 +125,116 @@ const ICONS: Record<string, string> = {
   save: '💾',
   info: 'ℹ️',
 }
+
+interface FactorPaletteItem {
+  name: FactorName
+  label: string
+  badge: string
+  direction: FactorDirection
+  description: string
+  accent: string
+  weight: number
+}
+
+const FACTOR_PALETTE: FactorPaletteItem[] = [
+  {
+    name: 'PER',
+    label: 'PER',
+    badge: '저평가',
+    direction: 'asc',
+    description: '이익 대비 저렴한 종목을 선호합니다.',
+    accent: '#f97316',
+    weight: 0.6,
+  },
+  {
+    name: 'PBR',
+    label: 'PBR',
+    badge: '자산가치',
+    direction: 'asc',
+    description: '순자산 대비 저평가 기업을 찾습니다.',
+    accent: '#ea580c',
+    weight: 0.4,
+  },
+  {
+    name: 'ROE',
+    label: 'ROE',
+    badge: '수익성',
+    direction: 'desc',
+    description: '높은 자기자본 이익률 기업',
+    accent: '#16a34a',
+    weight: 0.8,
+  },
+  {
+    name: 'OperatingMargin',
+    label: '영업이익률',
+    badge: '퀄리티',
+    direction: 'desc',
+    description: '안정적으로 돈 버는 기업을 우선합니다.',
+    accent: '#22c55e',
+    weight: 0.5,
+  },
+  {
+    name: 'Momentum_3M',
+    label: '3M 모멘텀',
+    badge: '단기 추세',
+    direction: 'desc',
+    description: '최근 3개월 수익률이 높은 종목',
+    accent: '#2563eb',
+    weight: 0.5,
+  },
+  {
+    name: 'Momentum_12M',
+    label: '12M 모멘텀',
+    badge: '장기 추세',
+    direction: 'desc',
+    description: '1년 모멘텀으로 추세를 확인합니다.',
+    accent: '#1d4ed8',
+    weight: 0.5,
+  },
+  {
+    name: 'ML_MODEL',
+    label: 'ML 모델 점수',
+    badge: 'AI',
+    direction: 'desc',
+    description: '모델 출력을 팩터로 활용합니다.',
+    accent: '#7c3aed',
+    weight: 0.7,
+  },
+]
+
+const FactorPalette = ({ onAdd, disabled }: { onAdd: (factor: FactorPaletteItem) => void; disabled: boolean }) => (
+  <div className="factor-palette">
+    <div className="factor-palette__header">
+      <div>
+        <p className="factor-palette__title">자주 쓰는 팩터</p>
+        <p className="factor-palette__description">버튼을 누르면 해당 팩터 블록이 캔버스에 추가됩니다.</p>
+      </div>
+      <span className="factor-palette__hint">{disabled ? '워크스페이스 준비 중…' : 'Click & Add'}</span>
+    </div>
+    <div className="factor-palette__grid">
+      {FACTOR_PALETTE.map((item) => (
+        <button
+          key={item.name}
+          type="button"
+          className="factor-pill"
+          style={{ '--accent-color': item.accent } as CSSProperties}
+          onClick={() => onAdd(item)}
+          disabled={disabled}
+        >
+          <div className="factor-pill__title">
+            <span>{item.label}</span>
+            <span className="factor-pill__badge">{item.badge}</span>
+          </div>
+          <p className="factor-pill__description">{item.description}</p>
+          <div className="factor-pill__meta">
+            <span>{item.direction === 'asc' ? '낮을수록 우수' : '높을수록 우수'}</span>
+            <span>{`기본 가중치 ${Math.round(item.weight * 100)}%`}</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  </div>
+)
 
 const navTabs: Array<{ id: PageKey; label: string; icon: string }> = [
   { id: 'dashboard', label: '대시보드', icon: ICONS.home },
@@ -609,6 +723,7 @@ const StrategyBuilder = ({
   const [builderConfig, setBuilderConfig] = useState<StrategyConfig>(() => normalizeStrategyConfig(DEFAULT_STRATEGY_CONFIG))
   const [builderName, setBuilderName] = useState<string>('')
   const [builderDescription, setBuilderDescription] = useState<string>('')
+  const [workspaceAPI, setWorkspaceAPI] = useState<StrategyWorkspaceAPI | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [pendingStrategyId, setPendingStrategyId] = useState<string | null>(null)
@@ -695,6 +810,14 @@ const StrategyBuilder = ({
     setStrategyId(id)
   }
 
+  const handleQuickFactorAdd = useCallback(
+    (factor: FactorPaletteItem) => {
+      if (!workspaceAPI) return
+      workspaceAPI.addFactorBlock({ name: factor.name, direction: factor.direction, weight: factor.weight })
+    },
+    [workspaceAPI],
+  )
+
   const handleExport = () => {
     const exportName = (builderName.trim() || selectedStrategy?.name || 'strategy').replace(/\s+/g, '_')
     const blob = new Blob([JSON.stringify(builderConfig, null, 2)], { type: 'application/json' })
@@ -774,39 +897,54 @@ const StrategyBuilder = ({
       icon={ICONS.sliders}
       right={
         <div className="builder-controls">
-          <div className="builder-fields">
-            <label className="builder-field">
-              <span>전략</span>
-              <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
-            </label>
-            <label className="builder-field">
-              <span>전략 이름</span>
-              <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
-            </label>
-            <label className="builder-field">
-              <span>설명</span>
-              <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="선택 입력" />
-            </label>
-            <label className="builder-field">
-              <span>시작일</span>
-              <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
-            </label>
-            <label className="builder-field">
-              <span>종료일</span>
-              <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
-            </label>
-            <label className="builder-field">
-              <span>초기자금</span>
-              <Input type="number" value={capital} onChange={handleCapitalChange} />
-            </label>
-            <label className="builder-field">
-              <span>모델</span>
-              <Select
-                value={modelId}
-                onChange={setModelId}
-                options={[{ label: '모델 사용 안함', value: '' }, ...models.map((item) => ({ label: item.name, value: item.id }))]}
-              />
-            </label>
+          <div className="builder-section">
+            <div className="builder-section__header">
+              <p className="builder-section__title">1. 전략 정보</p>
+              <p className="builder-section__description">저장된 전략을 선택하고 이름·설명을 정리하세요.</p>
+            </div>
+            <div className="builder-fields">
+              <label className="builder-field">
+                <span>전략 불러오기</span>
+                <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
+              </label>
+              <label className="builder-field">
+                <span>전략 이름</span>
+                <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
+              </label>
+              <label className="builder-field">
+                <span>설명</span>
+                <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
+              </label>
+            </div>
+          </div>
+
+          <div className="builder-section">
+            <div className="builder-section__header">
+              <p className="builder-section__title">2. 백테스트 파라미터</p>
+              <p className="builder-section__description">기간·초기 자본·ML 모델을 지정해 실험 환경을 정합니다.</p>
+            </div>
+            <div className="builder-fields builder-fields--compact">
+              <label className="builder-field">
+                <span>시작일</span>
+                <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+              </label>
+              <label className="builder-field">
+                <span>종료일</span>
+                <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+              </label>
+              <label className="builder-field">
+                <span>초기자금 (원)</span>
+                <Input type="number" value={capital} onChange={handleCapitalChange} />
+              </label>
+              <label className="builder-field">
+                <span>ML 모델</span>
+                <Select
+                  value={modelId}
+                  onChange={setModelId}
+                  options={[{ label: '모델 사용 안함', value: '' }, ...models.map((item) => ({ label: item.name, value: item.id }))]}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="builder-buttons">
@@ -831,23 +969,24 @@ const StrategyBuilder = ({
             <p className="blockly__description">
               Universe → Factors → Portfolio → Rebalancing 순으로 블록을 조합해 투자 전략을 완성하세요.
             </p>
-            <StrategyBlocklyEditor value={builderConfig} onChange={handleConfigChange} />
-            <div className="blockly__grid">
-              <div className="blockly__block">
-                <span className="blockly__block-title">Universe</span>
-                <span className="blockly__block-text">시장과 기본 필터를 선택합니다.</span>
+            <StrategyBlocklyEditor value={builderConfig} onChange={handleConfigChange} onWorkspaceReady={setWorkspaceAPI} />
+            <FactorPalette onAdd={handleQuickFactorAdd} disabled={!workspaceAPI} />
+            <div className="builder-flow">
+              <div className="builder-flow__card">
+                <span className="builder-flow__title">1. Universe</span>
+                <span className="builder-flow__text">시장과 기본 필터를 선택합니다.</span>
               </div>
-              <div className="blockly__block">
-                <span className="blockly__block-title">Factors</span>
-                <span className="blockly__block-text">팩터 블록을 추가하여 점수를 계산하세요.</span>
+              <div className="builder-flow__card">
+                <span className="builder-flow__title">2. Factors</span>
+                <span className="builder-flow__text">팩터 블록을 추가하여 점수를 계산하세요.</span>
               </div>
-              <div className="blockly__block">
-                <span className="blockly__block-title">Portfolio</span>
-                <span className="blockly__block-text">상위 종목 수와 가중 방식을 지정합니다.</span>
+              <div className="builder-flow__card">
+                <span className="builder-flow__title">3. Portfolio</span>
+                <span className="builder-flow__text">상위 종목 수와 가중 방식을 지정합니다.</span>
               </div>
-              <div className="blockly__block">
-                <span className="blockly__block-title">Rebalancing</span>
-                <span className="blockly__block-text">리밸런싱 주기를 설정합니다.</span>
+              <div className="builder-flow__card">
+                <span className="builder-flow__title">4. Rebalancing</span>
+                <span className="builder-flow__text">리밸런싱 주기를 설정합니다.</span>
               </div>
             </div>
           </div>

@@ -468,12 +468,23 @@ const applyStrategyToWorkspace = (workspace: any, config: StrategyConfig) => {
   Blockly.svgResize(workspace)
 }
 
+export interface StrategyWorkspaceAPI {
+  addFactorBlock: (options: {
+    name: FactorName
+    direction?: FactorDirection
+    weight?: number
+    model_id?: string
+  }) => void
+}
+
 export const StrategyBlocklyEditor = ({
   value,
   onChange,
+  onWorkspaceReady,
 }: {
   value: StrategyConfig
   onChange: (value: StrategyConfig) => void
+  onWorkspaceReady?: (api: StrategyWorkspaceAPI | null) => void
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const workspaceRef = useRef<any | null>(null)
@@ -508,6 +519,48 @@ export const StrategyBlocklyEditor = ({
 
     workspaceRef.current = workspace
 
+    const addFactorBlock: StrategyWorkspaceAPI['addFactorBlock'] = ({
+      name,
+      direction = 'desc',
+      weight = 0.5,
+      model_id = '',
+    }) => {
+      const root = workspace.getBlocksByType('strategy_root', false)[0]
+      if (!root) return
+      const factorsSection = root.getInputTargetBlock('FACTORS')
+      if (!factorsSection) return
+      if (!FACTOR_OPTIONS.some(([, value]) => value === name)) return
+
+      const factorBlock = workspace.newBlock('factor_item') as FactorBlock
+      factorBlock.setFieldValue(name, 'FACTOR')
+      if (DIRECTION_OPTIONS.some(([, value]) => value === direction)) {
+        factorBlock.setFieldValue(direction, 'DIRECTION')
+      }
+      if (Number.isFinite(weight)) {
+        factorBlock.setFieldValue(String(weight), 'WEIGHT')
+      }
+      if (name === 'ML_MODEL') {
+        factorBlock.setFieldValue(model_id ?? '', 'MODEL_ID')
+      }
+      factorBlock.initSvg()
+      factorBlock.render()
+      factorBlock.updateModelVisibility?.()
+
+      let lastFactor = factorsSection.getInputTargetBlock('ITEMS')
+      if (!lastFactor) {
+        factorsSection.getInput('ITEMS')?.connection?.connect(factorBlock.previousConnection)
+      } else {
+        while (lastFactor.getNextBlock()) {
+          lastFactor = lastFactor.getNextBlock()
+        }
+        lastFactor.nextConnection?.connect(factorBlock.previousConnection)
+      }
+
+      workspace.centerOnBlock(factorBlock.id)
+    }
+
+    onWorkspaceReady?.({ addFactorBlock })
+
     const handleResize = () => {
       Blockly.svgResize(workspace)
     }
@@ -538,8 +591,9 @@ export const StrategyBlocklyEditor = ({
       window.removeEventListener('resize', handleResize)
       workspace.dispose()
       workspaceRef.current = null
+      onWorkspaceReady?.(null)
     }
-  }, [])
+  }, [onWorkspaceReady])
 
   useEffect(() => {
     const workspace = workspaceRef.current
