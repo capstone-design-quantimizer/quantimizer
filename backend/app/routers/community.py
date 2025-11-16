@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
@@ -11,12 +13,53 @@ from app.schemas.community import (
     CommunityPostCreate,
     CommunityPostListResponse,
     CommunityPostRead,
+    CommunityBacktestSummary,
+    CommunityStrategySummary,
 )
 from app.schemas.strategy import StrategyRead
-from app.services.community import create_post, fork_post_strategy, get_post, list_posts
+from app.services.community import (
+    create_post,
+    fork_post_strategy,
+    get_last_backtest,
+    get_last_backtests,
+    get_post,
+    list_posts,
+)
 from app.utils.validators import parse_uuid
 
 router = APIRouter(prefix="/community", tags=["community"])
+
+
+def _normalize_initial_capital(value: Decimal | float | int) -> float:
+    if isinstance(value, Decimal):
+        return float(value)
+    return float(value)
+
+
+def _build_strategy_summary(post) -> CommunityStrategySummary:
+    strategy = post.strategy
+    return CommunityStrategySummary(
+        id=strategy.id,
+        name=strategy.name,
+        description=strategy.description,
+        strategy_json=strategy.strategy_json,
+    )
+
+
+def _build_backtest_summary(backtest) -> CommunityBacktestSummary | None:
+    if not backtest:
+        return None
+    return CommunityBacktestSummary(
+        id=backtest.id,
+        strategy_id=backtest.strategy_id,
+        start_date=backtest.start_date,
+        end_date=backtest.end_date,
+        initial_capital=_normalize_initial_capital(backtest.initial_capital),
+        ml_model_id=backtest.ml_model_id,
+        equity_curve=backtest.equity_curve,
+        metrics=backtest.metrics,
+        created_at=backtest.created_at,
+    )
 
 
 @router.post("/posts", response_model=CommunityPostRead, status_code=status.HTTP_201_CREATED)
@@ -26,6 +69,7 @@ def create_post_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> CommunityPostRead:
     post = create_post(db, current_user.id, post_in)
+    last_backtest = get_last_backtest(db, post.strategy_id)
     return CommunityPostRead(
         id=post.id,
         strategy_id=post.strategy_id,
@@ -34,6 +78,8 @@ def create_post_endpoint(
         created_at=post.created_at,
         author_id=post.author_id,
         author_username=post.author.username,
+        strategy=_build_strategy_summary(post),
+        last_backtest=_build_backtest_summary(last_backtest),
     )
 
 
@@ -42,6 +88,7 @@ def list_posts_endpoint(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> CommunityPostListResponse:
     posts = list_posts(db)
+    last_backtests = get_last_backtests(db, {post.strategy_id for post in posts})
     items = [
         CommunityFeedItem(
             id=post.id,
@@ -49,7 +96,8 @@ def list_posts_endpoint(
             content=post.content,
             created_at=post.created_at,
             author_username=post.author.username,
-            strategy={"name": post.strategy.name, "description": post.strategy.description},
+            strategy=_build_strategy_summary(post),
+            last_backtest=_build_backtest_summary(last_backtests.get(post.strategy_id)),
         )
         for post in posts
     ]

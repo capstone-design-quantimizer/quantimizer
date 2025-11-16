@@ -59,13 +59,21 @@ interface MLModelItem {
   created_at: string
 }
 
+interface CommunityStrategySummary {
+  id: string
+  name: string
+  description: string | null
+  strategy_json: Record<string, unknown>
+}
+
 interface CommunityFeedItem {
   id: string
   title: string
   content: string
   created_at: string
   author_username: string
-  strategy: Record<string, unknown>
+  strategy: CommunityStrategySummary
+  last_backtest: Backtest | null
 }
 
 interface StrategyListResponse {
@@ -1184,38 +1192,96 @@ const CommunityPage = ({
         </div>
       </div>
       <div className="community-grid">
-        {items.map((item) => (
-          <Card
-            key={item.id}
-            title={item.title}
-            icon={ICONS.share}
-            right={<span className="card__meta">작성자 {item.author_username}</span>}
-          >
-            <div className="community-meta">게시일 {toDateLabel(item.created_at)}</div>
-            <p className="community-content">{item.content}</p>
-            <div className="card__actions">
-              <Btn variant="ghost" onClick={() => setDetail(item)}>
-                JSON 보기
-              </Btn>
-              <Btn
-                variant="secondary"
-                onClick={async () => {
-                  try {
-                    await onFork(item.id)
-                    window.alert('전략이 내 전략 목록에 추가되었습니다.')
-                  } catch (error) {
-                    window.alert(error instanceof Error ? error.message : '전략 복사에 실패했습니다.')
-                  }
-                }}
-              >
-                {ICONS.fork} 복사
-              </Btn>
-            </div>
-          </Card>
-        ))}
+        {items.map((item) => {
+          const strategyKeys = Object.keys(item.strategy.strategy_json ?? {})
+          const displayedKeys = strategyKeys.slice(0, 4)
+          const metricsEntries = item.last_backtest ? Object.entries(item.last_backtest.metrics ?? {}) : []
+          return (
+            <Card
+              key={item.id}
+              title={item.title}
+              icon={ICONS.share}
+              right={<span className="card__meta">작성자 {item.author_username}</span>}
+            >
+              <div className="community-meta">게시일 {toDateLabel(item.created_at)}</div>
+              <p className="community-content">{item.content}</p>
+              <div className="community-strategy">
+                <span className="community-strategy__title">전략 정보</span>
+                <div className="community-strategy__name">{item.strategy.name}</div>
+                {item.strategy.description && (
+                  <div className="community-strategy__description">{item.strategy.description}</div>
+                )}
+                {displayedKeys.length > 0 && (
+                  <div className="community-strategy__meta">
+                    주요 키: {displayedKeys.join(', ')}
+                    {strategyKeys.length > displayedKeys.length ? ' …' : ''}
+                  </div>
+                )}
+              </div>
+              {item.last_backtest ? (
+                <div className="community-backtest">
+                  <div className="community-backtest__title">최근 백테스트</div>
+                  <div className="community-backtest__meta">
+                    {toDateLabel(item.last_backtest.start_date)} ~ {toDateLabel(item.last_backtest.end_date)} · 초기 자본 ₩
+                    {formatNumber(item.last_backtest.initial_capital)}
+                  </div>
+                  {metricsEntries.length > 0 ? (
+                    <ul className="community-backtest__metrics">
+                      {metricsEntries.map(([metricKey, metricValue]) => (
+                        <li key={metricKey} className="community-backtest__metric">
+                          <span className="community-backtest__metric-name">{metricKey}</span>
+                          <span className="community-backtest__metric-value">
+                            {metricValue.toLocaleString('ko-KR', { maximumFractionDigits: 4 })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="community-backtest__empty">지표 정보가 없습니다.</div>
+                  )}
+                </div>
+              ) : (
+                <div className="community-backtest community-backtest--empty">최근 백테스트 기록이 없습니다.</div>
+              )}
+              <div className="card__actions">
+                <Btn variant="ghost" onClick={() => setDetail(item)}>
+                  JSON 보기
+                </Btn>
+                <Btn
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      await onFork(item.id)
+                      window.alert('전략이 내 전략 목록에 추가되었습니다.')
+                    } catch (error) {
+                      window.alert(error instanceof Error ? error.message : '전략 복사에 실패했습니다.')
+                    }
+                  }}
+                >
+                  {ICONS.fork} 복사
+                </Btn>
+              </div>
+            </Card>
+          )
+        })}
       </div>
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={`전략 JSON: ${detail?.title ?? ''}`}>
-        {detail && <pre className="modal-json">{JSON.stringify(detail.strategy, null, 2)}</pre>}
+      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={`커뮤니티 상세: ${detail?.title ?? ''}`}>
+        {detail && (
+          <div className="community-json">
+            <div className="community-json__section">
+              <h4>전략 JSON</h4>
+              <pre className="modal-json">{JSON.stringify(detail.strategy, null, 2)}</pre>
+            </div>
+            {detail.last_backtest ? (
+              <div className="community-json__section">
+                <h4>최근 백테스트 결과</h4>
+                <pre className="modal-json">{JSON.stringify(detail.last_backtest, null, 2)}</pre>
+              </div>
+            ) : (
+              <div className="community-json__empty">최근 백테스트 기록이 없습니다.</div>
+            )}
+          </div>
+        )}
       </Modal>
       <Modal open={open} onClose={() => setOpen(false)} title="새 글 작성">
         <div className="form">
@@ -1498,7 +1564,11 @@ const App = () => {
       throw new Error('커뮤니티 게시글을 불러오지 못했습니다.')
     }
     const data = (await response.json()) as CommunityListResponse
-    setCommunityItems(data.items)
+    const normalizedItems = data.items.map((item) => ({
+      ...item,
+      last_backtest: item.last_backtest ? normalizeBacktest(item.last_backtest) : null,
+    }))
+    setCommunityItems(normalizedItems)
   }, [apiFetch])
 
   useEffect(() => {
