@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ButtonHTMLAttributes,
   type ChangeEvent,
@@ -191,15 +190,6 @@ const FACTOR_PALETTE: FactorPaletteItem[] = [
     accent: '#1d4ed8',
     weight: 0.5,
   },
-  {
-    name: 'ML_MODEL',
-    label: 'ML 모델 점수',
-    badge: 'AI',
-    direction: 'desc',
-    description: '모델 출력을 팩터로 활용합니다.',
-    accent: '#7c3aed',
-    weight: 0.7,
-  },
 ]
 
 const FactorPalette = ({ onAdd, disabled }: { onAdd: (factor: FactorPaletteItem) => void; disabled: boolean }) => (
@@ -241,7 +231,6 @@ const navTabs: Array<{ id: PageKey; label: string; icon: string }> = [
   { id: 'builder', label: '전략 빌더', icon: ICONS.sliders },
   { id: 'backtests', label: '백테스트', icon: ICONS.beaker },
   { id: 'strategies', label: '내 전략', icon: ICONS.layers },
-  { id: 'models', label: '모델', icon: ICONS.beaker },
   { id: 'community', label: '커뮤니티', icon: ICONS.share },
   { id: 'settings', label: '설정', icon: ICONS.settings },
 ]
@@ -706,7 +695,7 @@ const KPI = ({ label, value, sub }: { label: string; value: string | number; sub
 
 const StrategyBuilder = ({
   strategies,
-  models,
+
   onRunBacktest,
   onSaveStrategy,
 }: {
@@ -719,7 +708,6 @@ const StrategyBuilder = ({
   const [start, setStart] = useState<string>(() => new Date(new Date().setFullYear(new Date().getFullYear() - 5)).toISOString().slice(0, 10))
   const [end, setEnd] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [capital, setCapital] = useState<number>(10_000_000)
-  const [modelId, setModelId] = useState<string>('')
   const [builderConfig, setBuilderConfig] = useState<StrategyConfig>(() => normalizeStrategyConfig(DEFAULT_STRATEGY_CONFIG))
   const [builderName, setBuilderName] = useState<string>('')
   const [builderDescription, setBuilderDescription] = useState<string>('')
@@ -873,7 +861,7 @@ const StrategyBuilder = ({
         startDate: start,
         endDate: end,
         initialCapital: capital,
-        mlModelId: modelId || null,
+        mlModelId: null,
       })
       setResult(data)
     } catch (runError) {
@@ -897,34 +885,31 @@ const StrategyBuilder = ({
       icon={ICONS.sliders}
       right={
         <div className="builder-controls">
-          <div className="builder-sections-row">
-            <div className="builder-section">
-              <div className="builder-section__header">
-                <p className="builder-section__title">1. 전략 정보</p>
-                <p className="builder-section__description">저장된 전략을 선택하고 이름·설명을 정리하세요.</p>
-              </div>
-              <div className="builder-fields">
-                <label className="builder-field">
-                  <span>전략 불러오기</span>
-                  <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
-                </label>
-                <label className="builder-field">
-                  <span>전략 이름</span>
-                  <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
-                </label>
-                <label className="builder-field">
-                  <span>설명</span>
-                  <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
-                </label>
-              </div>
-            </div>
+          <div className="builder-fields">
+            {/* Group 1: 전략 정보 */}
+            <section className="builder-group">
+              <h3 className="builder-group__title">1. 전략 정보</h3>
+              <p className="builder-group__hint">저장된 전략을 선택하고 이름을 정리하세요.</p>
+              <label className="builder-field">
+                <span>전략 불러오기</span>
+                <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
+              </label>
+              <label className="builder-field">
+                <span>전략 이름</span>
+                <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
+              </label>
+              <label className="builder-field">
+                <span>설명</span>
+                <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
+              </label>
+            </section>
 
-            <div className="builder-section">
-              <div className="builder-section__header">
-                <p className="builder-section__title">2. 백테스트 파라미터</p>
-                <p className="builder-section__description">기간·초기 자본·ML 모델을 지정해 실험 환경을 정합니다.</p>
-              </div>
-              <div className="builder-fields builder-fields--compact">
+            {/* Group 2: 백테스트 파라미터 */}
+            <section className="builder-group">
+              <h3 className="builder-group__title">2. 백테스트 파라미터</h3>
+              <p className="builder-group__hint">기간·초기 자본을 지정해 실험 환경을 정의합니다.</p>
+              {/* 파라미터 필드들을 2열 그리드로 묶음 */}
+              <div className="builder-group__grid">
                 <label className="builder-field">
                   <span>시작일</span>
                   <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
@@ -937,16 +922,8 @@ const StrategyBuilder = ({
                   <span>초기자금 (원)</span>
                   <Input type="number" value={capital} onChange={handleCapitalChange} />
                 </label>
-                <label className="builder-field">
-                  <span>ML 모델</span>
-                  <Select
-                    value={modelId}
-                    onChange={setModelId}
-                    options={[{ label: '모델 사용 안함', value: '' }, ...models.map((item) => ({ label: item.name, value: item.id }))]}
-                  />
-                </label>
               </div>
-            </div>
+            </section>
           </div>
 
           <div className="builder-buttons">
@@ -1167,98 +1144,6 @@ const MyStrategies = ({ strategies, backtests, onRename, onClone, onDelete }: { 
           <p>등록된 전략이 없습니다. 커뮤니티에서 전략을 포크하거나 직접 등록해보세요.</p>
         </Card>
       )}
-    </div>
-  )
-}
-
-const ModelsPage = ({ models, onUpload, onDelete }: { models: MLModelItem[]; onUpload: (file: File) => Promise<void>; onDelete: (id: string) => Promise<void> }) => {
-  const fileRef = useRef<HTMLInputElement | null>(null)
-  const [uploading, setUploading] = useState(false)
-
-  const upload = async () => {
-    const file = fileRef.current?.files?.[0]
-    if (!file) return
-
-    if (!file.name.toLowerCase().endsWith('.onnx')) {
-      window.alert('ONNX 모델만 업로드 가능합니다.')
-      return
-    }
-
-    setUploading(true)
-    try {
-      await onUpload(file)
-      if (fileRef.current) {
-        fileRef.current.value = ''
-      }
-      window.alert('모델이 업로드되었습니다.')
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : '모델 업로드에 실패했습니다.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const remove = async (id: string) => {
-    if (!window.confirm('모델을 삭제하시겠습니까?')) return
-    try {
-      await onDelete(id)
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : '모델 삭제에 실패했습니다.')
-    }
-  }
-
-  return (
-    <div className="page-section">
-      <Card title="모델 업로드" icon={ICONS.upload}>
-        <div className="model-upload">
-          <input ref={fileRef} type="file" className="model-upload__input" accept=".onnx" />
-          <Btn variant="primary" onClick={upload} disabled={uploading}>
-            {uploading ? '업로드 중…' : `${ICONS.upload} 업로드`}
-          </Btn>
-        </div>
-        <div className="model-upload__hint">허용: .onnx (ONNX 타입만 지원)</div>
-      </Card>
-
-      <Card title="모델 레지스트리" icon={ICONS.beaker}>
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>이름</th>
-                <th>버전</th>
-                <th>프레임워크</th>
-                <th>입력 스키마</th>
-                <th>등록일</th>
-                <th>액션</th>
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((item) => (
-                <tr key={item.id}>
-                  <td className="bold">{item.name}</td>
-                  <td>-</td>
-                  <td>ONNX</td>
-                  <td>-</td>
-                  <td>{toDateLabel(item.created_at)}</td>
-                  <td>
-                    <div className="table-actions">
-                      <Btn variant="ghost" disabled>
-                        테스트
-                      </Btn>
-                      <Btn variant="secondary" disabled>
-                        버전업
-                      </Btn>
-                      <Btn variant="danger" onClick={() => void remove(item.id)}>
-                        {ICONS.trash} 삭제
-                      </Btn>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   )
 }
@@ -1494,13 +1379,6 @@ const SettingsPage = () => {
             </div>
           </Field>
         </div>
-      </Card>
-      <Card title="데이터/보안" icon={ICONS.info}>
-        <ul className="settings-list">
-          <li>사용자 모델 실행은 샌드박스 격리(리소스/시간 제한) 권장</li>
-          <li>PIT 원칙 보장(리밸런싱 기준일 직전 데이터만 사용)</li>
-          <li>전략 비교 페이지/SQL 미리보기는 제품 범위에서 제외</li>
-        </ul>
       </Card>
     </div>
   )
@@ -1876,44 +1754,6 @@ const App = () => {
     [apiFetch],
   )
 
-  const handleUploadModel = useCallback(
-    async (file: File) => {
-      const form = new FormData()
-      form.append('name', file.name.replace(/\.[^.]+$/, ''))
-      form.append('file', file)
-      const response = await apiFetch('/models/upload', {
-        method: 'POST',
-        body: form,
-      })
-      if (!response.ok) {
-        let message = '모델 업로드에 실패했습니다.'
-        try {
-          const data = (await response.json()) as { detail?: string }
-          if (data?.detail) {
-            message = data.detail
-          }
-        } catch {
-          // ignore
-        }
-        throw new Error(message)
-      }
-      const created = (await response.json()) as MLModelItem
-      setModels((prev) => [created, ...prev])
-    },
-    [apiFetch],
-  )
-
-  const handleDeleteModel = useCallback(
-    async (id: string) => {
-      const response = await apiFetch(`/models/${id}`, { method: 'DELETE' })
-      if (!response.ok) {
-        throw new Error('모델 삭제에 실패했습니다.')
-      }
-      setModels((prev) => prev.filter((item) => item.id !== id))
-    },
-    [apiFetch],
-  )
-
   const handleForkCommunity = useCallback(
     async (postId: string) => {
       const response = await apiFetch(`/community/posts/${postId}/fork`, { method: 'POST' })
@@ -2029,7 +1869,6 @@ const App = () => {
             onDelete={handleDeleteStrategy}
           />
         )}
-        {page === 'models' && <ModelsPage models={models} onUpload={handleUploadModel} onDelete={handleDeleteModel} />}
         {page === 'community' && (
           <CommunityPage
             strategies={strategies}
