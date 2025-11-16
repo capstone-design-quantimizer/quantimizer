@@ -897,53 +897,55 @@ const StrategyBuilder = ({
       icon={ICONS.sliders}
       right={
         <div className="builder-controls">
-          <div className="builder-section">
-            <div className="builder-section__header">
-              <p className="builder-section__title">1. 전략 정보</p>
-              <p className="builder-section__description">저장된 전략을 선택하고 이름·설명을 정리하세요.</p>
+          <div className="builder-sections-row">
+            <div className="builder-section">
+              <div className="builder-section__header">
+                <p className="builder-section__title">1. 전략 정보</p>
+                <p className="builder-section__description">저장된 전략을 선택하고 이름·설명을 정리하세요.</p>
+              </div>
+              <div className="builder-fields">
+                <label className="builder-field">
+                  <span>전략 불러오기</span>
+                  <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
+                </label>
+                <label className="builder-field">
+                  <span>전략 이름</span>
+                  <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
+                </label>
+                <label className="builder-field">
+                  <span>설명</span>
+                  <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
+                </label>
+              </div>
             </div>
-            <div className="builder-fields">
-              <label className="builder-field">
-                <span>전략 불러오기</span>
-                <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
-              </label>
-              <label className="builder-field">
-                <span>전략 이름</span>
-                <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
-              </label>
-              <label className="builder-field">
-                <span>설명</span>
-                <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
-              </label>
-            </div>
-          </div>
 
-          <div className="builder-section">
-            <div className="builder-section__header">
-              <p className="builder-section__title">2. 백테스트 파라미터</p>
-              <p className="builder-section__description">기간·초기 자본·ML 모델을 지정해 실험 환경을 정합니다.</p>
-            </div>
-            <div className="builder-fields builder-fields--compact">
-              <label className="builder-field">
-                <span>시작일</span>
-                <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
-              </label>
-              <label className="builder-field">
-                <span>종료일</span>
-                <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
-              </label>
-              <label className="builder-field">
-                <span>초기자금 (원)</span>
-                <Input type="number" value={capital} onChange={handleCapitalChange} />
-              </label>
-              <label className="builder-field">
-                <span>ML 모델</span>
-                <Select
-                  value={modelId}
-                  onChange={setModelId}
-                  options={[{ label: '모델 사용 안함', value: '' }, ...models.map((item) => ({ label: item.name, value: item.id }))]}
-                />
-              </label>
+            <div className="builder-section">
+              <div className="builder-section__header">
+                <p className="builder-section__title">2. 백테스트 파라미터</p>
+                <p className="builder-section__description">기간·초기 자본·ML 모델을 지정해 실험 환경을 정합니다.</p>
+              </div>
+              <div className="builder-fields builder-fields--compact">
+                <label className="builder-field">
+                  <span>시작일</span>
+                  <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+                </label>
+                <label className="builder-field">
+                  <span>종료일</span>
+                  <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+                </label>
+                <label className="builder-field">
+                  <span>초기자금 (원)</span>
+                  <Input type="number" value={capital} onChange={handleCapitalChange} />
+                </label>
+                <label className="builder-field">
+                  <span>ML 모델</span>
+                  <Select
+                    value={modelId}
+                    onChange={setModelId}
+                    options={[{ label: '모델 사용 안함', value: '' }, ...models.map((item) => ({ label: item.name, value: item.id }))]}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 
