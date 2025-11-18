@@ -213,13 +213,6 @@ const FACTOR_PALETTE: FactorPaletteItem[] = [
 
 const FactorPalette = ({ onAdd, disabled }: { onAdd: (factor: FactorPaletteItem) => void; disabled: boolean }) => (
   <div className="factor-palette">
-    <div className="factor-palette__header">
-      <div>
-        <p className="factor-palette__title">자주 쓰는 팩터</p>
-        <p className="factor-palette__description">버튼을 누르면 해당 팩터 블록이 캔버스에 추가됩니다.</p>
-      </div>
-      <span className="factor-palette__hint">{disabled ? '워크스페이스 준비 중…' : 'Click & Add'}</span>
-    </div>
     <div className="factor-palette__grid">
       {FACTOR_PALETTE.map((item) => (
         <button
