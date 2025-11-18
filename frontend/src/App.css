@@ -806,7 +806,7 @@ body {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: min(768px, 92vw);
+  width: min(768px, 130vw);
   background: #fff;
   border-radius: 14px;
   box-shadow: var(--shadow);
