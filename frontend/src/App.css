@@ -224,7 +224,8 @@ body {
 
 /* 2행: 전체 가로폭 백테스트 결과 */
 .builder-backtest {
-  min-height: 320px;
+  min-height: 420px;
+  display: flex;
 }
 
 /* 전체 빌더 컨트롤 컨테이너 */
@@ -605,11 +606,15 @@ body {
 .factor-palette {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: var(--radius-md);
-  padding: 16px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.9);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  flex: 1;
+  height: 100%;
+  max-height: 420px;      
+  overflow-y: auto;
 }
 
 .factor-palette__header {
@@ -638,19 +643,19 @@ body {
 
 .factor-palette__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .factor-pill {
   border-radius: var(--radius-md);
   border: 1px solid var(--accent-color, rgba(148, 163, 184, 0.4));
   background: color-mix(in srgb, var(--accent-color, #2563eb) 12%, #ffffff);
-  padding: 12px;
+  padding: 10px;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border 0.15s ease;
   color: var(--text-primary);
@@ -674,21 +679,21 @@ body {
 }
 
 .factor-pill__badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
+  font-size: 0.72rem;
+  padding: 2px 7px;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.08);
   color: var(--text-secondary);
 }
 
 .factor-pill__description {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
   margin: 0;
 }
 
 .factor-pill__meta {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   display: flex;
   justify-content: space-between;
@@ -781,6 +786,11 @@ body {
   padding: 16px;
   box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.4);
   max-width: 100%;
+}
+.equity-chart svg {
+  width: 100%;
+  height: 120px;          
+  display: block;
 }
 .equity-chart__footer {
   display: flex;
