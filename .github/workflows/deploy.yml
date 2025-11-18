@@ -113,7 +113,8 @@ jobs:
           if grep -q "^version:" docker-compose.yml; then
             sed -i '/^version:/d' docker-compose.yml
           fi
-          docker compose pull
-          docker compose up -d
+          docker compose pull backend frontend
+          docker compose up -d backend frontend
+          docker compose up -d --force-recreate loki promtail grafana
           docker image prune -f || true
           EOF
