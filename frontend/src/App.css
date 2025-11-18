@@ -806,7 +806,7 @@ body {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: min(640px, 92vw);
+  width: min(768px, 92vw);
   background: #fff;
   border-radius: 14px;
   box-shadow: var(--shadow);
@@ -819,6 +819,10 @@ body {
   justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
 }
 .modal__title {
   font-weight: 700;
