@@ -879,53 +879,46 @@ const StrategyBuilder = ({
     [strategies],
   )
 
-  return (
+ return (
     <Card
       title="전략 빌더"
       icon={ICONS.sliders}
       right={
         <div className="builder-controls">
-          <div className="builder-fields">
-            {/* Group 1: 전략 정보 */}
-            <section className="builder-group">
-              <h3 className="builder-group__title">1. 전략 정보</h3>
-              <p className="builder-group__hint">저장된 전략을 선택하고 이름을 정리하세요.</p>
-              <label className="builder-field">
-                <span>전략 불러오기</span>
-                <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
-              </label>
-              <label className="builder-field">
-                <span>전략 이름</span>
-                <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
-              </label>
-              <label className="builder-field">
-                <span>설명</span>
-                <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
-              </label>
-            </section>
-
-            {/* Group 2: 백테스트 파라미터 */}
-            <section className="builder-group">
-              <h3 className="builder-group__title">2. 백테스트 파라미터</h3>
-              <p className="builder-group__hint">기간·초기 자본을 지정해 실험 환경을 정의합니다.</p>
-              {/* 파라미터 필드들을 2열 그리드로 묶음 */}
-              <div className="builder-group__grid">
-                <label className="builder-field">
-                  <span>시작일</span>
-                  <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
-                </label>
-                <label className="builder-field">
-                  <span>종료일</span>
-                  <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
-                </label>
-                <label className="builder-field">
-                  <span>초기자금 (원)</span>
-                  <Input type="number" value={capital} onChange={handleCapitalChange} />
-                </label>
-              </div>
-            </section>
+          
+          {/* 첫 번째 줄: 전략 불러오기, 이름, 설명 */}
+          <div className="builder-row">
+            <label className="builder-field">
+              <span>전략 불러오기</span>
+              <Select value={strategyId} onChange={handleStrategySelect} options={strategyOptions} />
+            </label>
+            <label className="builder-field">
+              <span>전략 이름</span>
+              <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
+            </label>
+            <label className="builder-field">
+              <span>설명</span>
+              <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
+            </label>
           </div>
 
+          {/* 두 번째 줄: 시작일, 종료일, 초기자금 */}
+          <div className="builder-row">
+            <label className="builder-field">
+              <span>시작일</span>
+              <Input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+            </label>
+            <label className="builder-field">
+              <span>종료일</span>
+              <Input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+            </label>
+            <label className="builder-field">
+              <span>초기자금 (원)</span>
+              <Input type="number" value={capital} onChange={handleCapitalChange} />
+            </label>
+          </div>
+
+          {/* 버튼 그룹 */}
           <div className="builder-buttons">
             <Btn variant="primary" onClick={handleSave} disabled={saving}>
               {saving ? '저장 중…' : `${ICONS.save} 전략 저장`}

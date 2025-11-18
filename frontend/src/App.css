@@ -203,57 +203,22 @@ body {
   width: 100%;
 }
 
-/* 모든 필드 그룹(전략 정보, 백테스트 파라미터)을 감싸는 그리드 */
-.builder-fields {
+/* 새로운 가로 행 레이아웃 (한 줄에 필드 3개 배치) */
+.builder-row {
   display: grid;
-  /* 모바일: 1열 */
-  grid-template-columns: 1fr;
-  gap: 24px; /* 그룹 간 세로 간격 */
+  grid-template-columns: 1fr; /* 모바일: 세로 스택 */
+  gap: 16px;
   width: 100%;
 }
 
-/* 개별 그룹 (예: 1. 전략 정보) */
-.builder-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px; /* 그룹 내 필드 간 간격 */
-  min-width: 0; /* flex/grid 자식 요소 넘침 방지 */
+/* 노트북/데스크톱 (1024px 이상): 한 줄에 3개씩 배치 */
+@media (min-width: 1024px) {
+  .builder-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
-.builder-group__title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text-primary);
-}
-
-.builder-group__hint {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin: -4px 0 4px;
-}
-
-/* 백테스트 파라미터 내부의 2열 그리드 */
-.builder-group__grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px 16px;
-}
-
-/* 개별 필드 */
-.builder-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.builder-field span {
-  font-weight: 600;
-}
-
-/* 버튼 그룹: 필드 아래에 배치 */
+/* 기존 builder-buttons 스타일은 유지하되 margin-top 조정 */
 .builder-buttons {
   display: flex;
   align-items: center;
@@ -261,32 +226,15 @@ body {
   gap: 10px;
   flex-wrap: wrap;
   width: 100%;
-  margin-top: 8px; /* 그룹과 버튼 사이 간격 */
+  margin-top: 4px;
 }
 
-/* ===== 노트북/데스크톱 (1024px 이상): 2열 그룹 레이아웃 ===== */
-@media (min-width: 1024px) {
-  .builder-fields {
-    /* 2개의 그룹을 1:1 비율로 가로 배치 */
-    grid-template-columns: 1fr 1fr;
-    gap: 24px 32px; /* 세로 간격, 가로 간격 */
-  }
-}
-
-
-/* ===== 모바일 (767px 이하): 1열 + 파라미터 1열 ===== */
+/* 모바일 대응 */
 @media (max-width: 767px) {
-  /* 백테스트 파라미터 그리드를 1열로 변경 */
-  .builder-group__grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
   .builder-buttons {
     flex-direction: column;
     width: 100%;
   }
-
   .builder-buttons .btn {
     width: 100%;
   }
