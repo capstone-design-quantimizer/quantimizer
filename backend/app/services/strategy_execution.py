@@ -266,9 +266,13 @@ def _fetch_scored_frame(db: Session, sql: str, params: dict[str, Any]) -> pd.Dat
             "Executed scored SQL",
             extra={"rows": len(df), "duration": elapsed},
         )
-    if df.empty:
-        raise StrategyExecutionError("No market data available for the requested period")
-    df["event_date"] = pd.to_datetime(df["event_date"])
+    #
+    # 수정된 부분: 데이터가 없을 때 에러를 발생시키지 않고, 비어있는 데이터프레임을 반환합니다.
+    # if df.empty:
+    #     raise StrategyExecutionError("No market data available for the requested period")
+    #
+    if not df.empty:
+        df["event_date"] = pd.to_datetime(df["event_date"])
     return df
 
 
@@ -395,6 +399,9 @@ def _simulate_equity_curve_Tplus1(
 
 # ---------- Metrics & persist ----------
 def _compute_metrics(equity_curve: dict[date, float], initial_capital: float) -> dict[str, float]:
+    if not equity_curve or len(equity_curve) < 2:
+        return {"total_return": 0.0, "cagr": 0.0, "volatility": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}
+    
     series = pd.Series(equity_curve).sort_index()
     series.index = pd.to_datetime(series.index)
     rets = series.pct_change().dropna()
@@ -416,6 +423,8 @@ def _compute_metrics(equity_curve: dict[date, float], initial_capital: float) ->
 
 
 def _run_backtesting_adapter(equity_curve: dict[date, float], initial_capital: float) -> None:
+    if not equity_curve:
+        return
     eq = pd.Series(equity_curve).sort_index()
     eq.index = pd.to_datetime(eq.index)
     price = eq.to_frame(name="Close")
@@ -481,6 +490,23 @@ def execute_strategy(
     # SQL score
     sql, params, used = _build_scored_sql(spec, start_date, end_date)
     universe_scored = _fetch_scored_frame(db, sql, params)
+
+    if universe_scored.empty:
+        logger.warning("No data found for the given strategy and period, returning empty result.")
+        equity_curve_list = []
+        metrics = {"total_return": 0.0, "cagr": 0.0, "volatility": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}
+        rec = _persist_backtest(
+            db=db,
+            strategy_id=strategy_id,
+            start=start_date,
+            end=end_date,
+            initial_capital=initial_capital,
+            ml_model=ml_model,
+            equity_curve_list=equity_curve_list,
+            metrics=metrics,
+        )
+        return {"backtest_id": str(rec.id), "equity_curve": equity_curve_list, "metrics": metrics}
+
 
     # ML add & rank
     ranked = _apply_ml_and_rank(universe_scored, spec.factors, used, ml_session)
