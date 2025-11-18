@@ -195,6 +195,37 @@ body {
    Builder 영역 - 반응형 2단 그룹 레이아웃
    =============================================== */
 
+   /* ---------- Builder layout & panels ---------- */
+.builder-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 1행: Blockly 캔버스 + 자주 쓰는 팩터 */
+.builder-main {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr); /* 노트북 기준 2 : 1.2 비율 */
+  gap: 24px;
+  align-items: flex-start;
+}
+
+@media (max-width: 1024px) {
+  .builder-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.builder-canvas,
+.builder-factors {
+  min-height: 420px;
+}
+
+/* 2행: 전체 가로폭 백테스트 결과 */
+.builder-backtest {
+  min-height: 320px;
+}
+
 /* 전체 빌더 컨트롤 컨테이너 */
 .builder-controls {
   display: flex;

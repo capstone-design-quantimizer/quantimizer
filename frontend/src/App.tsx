@@ -926,7 +926,7 @@ const StrategyBuilder = ({
     [strategies],
   )
 
-   return (
+     return (
     <Card
       title="전략 빌더"
       icon={ICONS.sliders}
@@ -993,7 +993,8 @@ const StrategyBuilder = ({
       }
     >
       <div className="builder-layout">
-        <div className="builder-main-row">
+        {/* 1행: 왼쪽 Blockly, 오른쪽 자주 쓰는 팩터 */}
+        <div className="builder-main">
           <div className="builder-canvas">
             <div className="blockly">
               <div className="blockly__title">Blockly 전략 구성 캔버스</div>
@@ -1014,7 +1015,7 @@ const StrategyBuilder = ({
           </div>
         </div>
 
-        {/* 2행: 전체 가로폭을 차지하는 백테스트 결과 영역 */}
+        {/* 2행: 전체 가로폭 백테스트 결과 */}
         <div className="builder-backtest">
           {successMessage && (
             <div className="alert alert--success">
@@ -1042,7 +1043,6 @@ const StrategyBuilder = ({
     </Card>
   )
 }
-
 
 const BacktestsPage = ({ backtests, strategies, onSelect }: { backtests: Backtest[]; strategies: Strategy[]; onSelect: (item: Backtest) => void }) => {
   const strategyMap = useMemo(() => new Map(strategies.map((item) => [item.id, item])), [strategies])
