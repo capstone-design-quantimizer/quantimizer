@@ -798,7 +798,7 @@ body {
 }
 .equity-chart svg {
   width: 100%;
-  height: 120px;          
+  height: 180px;          
   display: block;
 }
 .equity-chart__footer {
