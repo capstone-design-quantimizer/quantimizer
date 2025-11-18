@@ -462,27 +462,34 @@ body {
 
 /* ---------- Builder layout & panels ---------- */
 .builder-layout {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
-  align-items: stretch;
 }
+
+.builder-main-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr); 
+  gap: 24px;
+  align-items: flex-start;
+}
+
 @media (max-width: 1024px) {
   .builder-layout {
     grid-template-columns: 1fr;
   }
 }
 
-.builder-canvas,
-.builder-report {
+.builder-canvas {
   min-height: 420px;
 }
 
-/* 오른쪽 리포트 패널 넘침 방지/스크롤 */
-.builder-report {
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
+.builder-factors {
+  min-height: 420px;
+}
+
+.builder-backtest {
+  min-height: 320px;
 }
 
 /* ---------- Blockly Canvas ---------- */

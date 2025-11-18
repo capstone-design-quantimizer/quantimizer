@@ -933,13 +933,12 @@ const StrategyBuilder = ({
     [strategies],
   )
 
- return (
+   return (
     <Card
       title="전략 빌더"
       icon={ICONS.sliders}
       right={
         <div className="builder-controls">
-          
           {/* 첫 번째 줄: 전략 불러오기, 이름, 설명 */}
           <div className="builder-row">
             <label className="builder-field">
@@ -948,11 +947,19 @@ const StrategyBuilder = ({
             </label>
             <label className="builder-field">
               <span className="builder-label">전략 이름</span>
-              <Input value={builderName} onChange={handleNameChange} placeholder="예: 가치 + 퀄리티 전략" />
+              <Input
+                value={builderName}
+                onChange={handleNameChange}
+                placeholder="예: 가치 + 퀄리티 전략"
+              />
             </label>
             <label className="builder-field">
               <span className="builder-label">설명</span>
-              <Input value={builderDescription} onChange={handleDescriptionChange} placeholder="전략 특징을 요약하세요" />
+              <Input
+                value={builderDescription}
+                onChange={handleDescriptionChange}
+                placeholder="전략 특징을 요약하세요"
+              />
             </label>
           </div>
 
@@ -981,7 +988,11 @@ const StrategyBuilder = ({
               {ICONS.download}
               JSON 내보내기
             </Btn>
-            <Btn variant="secondary" onClick={runBacktest} disabled={isRunning || strategyId === NEW_STRATEGY_ID}>
+            <Btn
+              variant="secondary"
+              onClick={runBacktest}
+              disabled={isRunning || strategyId === NEW_STRATEGY_ID}
+            >
               {isRunning ? '실행 중...' : `${ICONS.play} 백테스트 실행`}
             </Btn>
           </div>
@@ -989,35 +1000,29 @@ const StrategyBuilder = ({
       }
     >
       <div className="builder-layout">
-        <div className="builder-canvas">
-          <div className="blockly">
-            <div className="blockly__title">Blockly 전략 구성 캔버스</div>
-            <p className="blockly__description">
-              Universe → Factors → Portfolio → Rebalancing 순으로 블록을 조합해 투자 전략을 완성하세요.
-            </p>
-            <StrategyBlocklyEditor value={builderConfig} onChange={handleConfigChange} onWorkspaceReady={setWorkspaceAPI} />
-            <FactorPalette onAdd={handleQuickFactorAdd} disabled={!workspaceAPI} />
-            <div className="builder-flow">
-              <div className="builder-flow__card">
-                <span className="builder-flow__title">1. Universe</span>
-                <span className="builder-flow__text">시장과 기본 필터를 선택합니다.</span>
-              </div>
-              <div className="builder-flow__card">
-                <span className="builder-flow__title">2. Factors</span>
-                <span className="builder-flow__text">팩터 블록을 추가하여 점수를 계산하세요.</span>
-              </div>
-              <div className="builder-flow__card">
-                <span className="builder-flow__title">3. Portfolio</span>
-                <span className="builder-flow__text">상위 종목 수와 가중 방식을 지정합니다.</span>
-              </div>
-              <div className="builder-flow__card">
-                <span className="builder-flow__title">4. Rebalancing</span>
-                <span className="builder-flow__text">리밸런싱 주기를 설정합니다.</span>
-              </div>
+        <div className="builder-main-row">
+          <div className="builder-canvas">
+            <div className="blockly">
+              <div className="blockly__title">Blockly 전략 구성 캔버스</div>
+              <p className="blockly__description">
+                Universe → Factors → Portfolio → Rebalancing 순으로 블록을 조합해 투자 전략을
+                완성하세요.
+              </p>
+              <StrategyBlocklyEditor
+                value={builderConfig}
+                onChange={handleConfigChange}
+                onWorkspaceReady={setWorkspaceAPI}
+              />
             </div>
           </div>
+
+          <div className="builder-factors">
+            <FactorPalette onAdd={handleQuickFactorAdd} disabled={!workspaceAPI} />
+          </div>
         </div>
-        <div className="builder-report">
+
+        {/* 2행: 전체 가로폭을 차지하는 백테스트 결과 영역 */}
+        <div className="builder-backtest">
           {successMessage && (
             <div className="alert alert--success">
               {ICONS.save} {successMessage}
@@ -1028,10 +1033,7 @@ const StrategyBuilder = ({
               {ICONS.info} {error}
             </div>
           )}
-          <div className="builder-json">
-            <div className="builder-json__header">전략 JSON 미리보기</div>
-            <pre className="builder-json__code">{JSON.stringify(builderConfig, null, 2)}</pre>
-          </div>
+
           {result ? (
             <PerformanceReport result={result} />
           ) : (
@@ -1047,6 +1049,7 @@ const StrategyBuilder = ({
     </Card>
   )
 }
+
 
 const BacktestsPage = ({ backtests, strategies, onSelect }: { backtests: Backtest[]; strategies: Strategy[]; onSelect: (item: Backtest) => void }) => {
   const strategyMap = useMemo(() => new Map(strategies.map((item) => [item.id, item])), [strategies])
