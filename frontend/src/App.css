@@ -211,6 +211,10 @@ body {
   width: 100%;
 }
 
+.builder-label {
+  font-weight: 700;
+}
+
 /* 노트북/데스크톱 (1024px 이상): 한 줄에 3개씩 배치 */
 @media (min-width: 1024px) {
   .builder-row {
