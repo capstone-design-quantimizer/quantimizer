@@ -58,20 +58,18 @@ class StrategySpec:
 
 # ---------- Config ----------
 FACTOR_COLUMN_MAP: dict[str, str] = {
-    # Value
     "PER": "per",
     "PBR": "pbr",
-    # Quality (옵션: ETL 확장 시 사용)
-    "ROE": "roe",
-    "OPERATINGMARGIN": "operating_margin",
-    # Momentum/Tech
+    "EPS": "eps",
+    "BPS": "bps",
+    "DIVIDENDYIELD": "dividend_yield",
+    "PCTCHANGE": "pct_change",
     "RSI_14": "rsi_14",
     "MA_20D": "ma_20d",
     "MOMENTUM_3M": "momentum_3m",
     "MOMENTUM_12M": "momentum_12m",
     "VOLATILITY_20D": "volatility_20d",
-    # Size
-    "MARKET_CAP": "market_cap",
+    "MARKETCAP": "market_cap",
 }
 
 VALID_MARKETS = {"ALL", "KOSPI", "KOSDAQ"}

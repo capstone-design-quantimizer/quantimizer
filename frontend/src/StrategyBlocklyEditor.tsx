@@ -7,10 +7,16 @@ export type MarketCode = 'KOSPI' | 'KOSDAQ' | 'ALL'
 export type FactorName =
   | 'PER'
   | 'PBR'
-  | 'ROE'
-  | 'OperatingMargin'
+  | 'EPS'
+  | 'BPS'
+  | 'DividendYield'
+  | 'RSI_14'
+  | 'MA_20D'
   | 'Momentum_3M'
   | 'Momentum_12M'
+  | 'Volatility_20D'
+  | 'MarketCap'
+  | 'PctChange'
   | 'ML_MODEL'
 export type FactorDirection = 'asc' | 'desc'
 export type PortfolioWeighting = 'equal' | 'market_cap'
@@ -68,12 +74,19 @@ type ToolboxDefinition = any
 const FACTOR_OPTIONS: Array<[string, FactorName]> = [
   ['PER (주가수익비율)', 'PER'],
   ['PBR (주가순자산비율)', 'PBR'],
-  ['ROE (자기자본이익률)', 'ROE'],
-  ['영업이익률 (OperatingMargin)', 'OperatingMargin'],
+  ['EPS (주당순이익)', 'EPS'],
+  ['BPS (주당순자산)', 'BPS'],
+  ['배당수익률 (DividendYield)', 'DividendYield'],
+  ['RSI 14일', 'RSI_14'],
+  ['20일 이동평균 (MA_20D)', 'MA_20D'],
   ['모멘텀 3M', 'Momentum_3M'],
   ['모멘텀 12M', 'Momentum_12M'],
+  ['변동성 20D (Volatility_20D)', 'Volatility_20D'],
+  ['시가총액 (MarketCap)', 'MarketCap'],
+  ['일간 수익률 (PctChange)', 'PctChange'],
   ['외부 ML 모델', 'ML_MODEL'],
 ]
+
 
 const MARKET_OPTIONS: Array<[string, MarketCode]> = [
   ['KOSPI', 'KOSPI'],
