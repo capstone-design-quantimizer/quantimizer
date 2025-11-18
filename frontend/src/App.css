@@ -371,13 +371,26 @@ body {
   gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
+
 .kpi {
   background: var(--surface);
   border-radius: var(--radius-md);
   border: 1px solid rgba(226, 232, 240, 0.7);
   padding: 18px;
   box-shadow: var(--shadow-soft);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
+
+.kpi--clickable {
+  cursor: pointer;
+}
+
+.kpi--clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+  border-color: rgba(37, 99, 235, 0.6);
+}
+
 .kpi__label {
   font-size: 0.78rem;
   color: var(--text-muted);
@@ -394,6 +407,7 @@ body {
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
+
 
 /* ---------- Table ---------- */
 .table-wrapper {

@@ -610,11 +610,22 @@ const PerformanceReport = ({ result }: { result: Backtest }) => {
   )
 }
 
-const Dashboard = ({ strategies, backtests, models, onOpenBacktest }: { strategies: Strategy[]; backtests: Backtest[]; models: MLModelItem[]; onOpenBacktest: (item: Backtest) => void }) => {
+const Dashboard = ({
+  strategies,
+  backtests,
+  onOpenBacktest,
+  onNavigate,
+}: {
+  strategies: Strategy[]
+  backtests: Backtest[]
+  onOpenBacktest: (item: Backtest) => void
+  onNavigate: (page: PageKey) => void
+}) => {
   const strategyMap = useMemo(() => new Map(strategies.map((item) => [item.id, item])), [strategies])
-  const sortedBacktests = useMemo(() => {
-    return [...backtests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  }, [backtests])
+  const sortedBacktests = useMemo(
+    () => [...backtests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [backtests],
+  )
   const latestBacktest = sortedBacktests[0]
 
   const chartData = useMemo(() => {
@@ -639,10 +650,23 @@ const Dashboard = ({ strategies, backtests, models, onOpenBacktest }: { strategi
   return (
     <div className="page-section">
       <div className="kpi-grid">
-        <KPI label="내 전략" value={strategies.length} sub="등록된 전략 수" />
-        <KPI label="최근 백테스트" value={kpiBacktest} sub={kpiStrategy} />
-        <KPI label="대표 전략 누적 수익률" value={latestBacktest ? formatPercent(ytd ?? null) : '-'} />
-        <KPI label="등록 모델" value={models.length} sub="ONNX 추천" />
+        <KPI
+          label="투자 모델"
+          value={strategies.length}
+          sub="등록된 전략 수"
+          onClick={() => onNavigate('strategies')}
+        />
+        <KPI
+          label="대표 모델 누적 수익률"
+          value={latestBacktest ? formatPercent(ytd ?? null) : '-'}
+          onClick={() => onNavigate('strategies')}
+        />
+        <KPI
+          label="최근 백테스트"
+          value={kpiBacktest}
+          sub={kpiStrategy}
+          onClick={() => onNavigate('backtests')}
+        />
       </div>
 
       <Card title="대표 전략 에쿼티 커브" icon={ICONS.chart}>
@@ -676,7 +700,8 @@ const Dashboard = ({ strategies, backtests, models, onOpenBacktest }: { strategi
               </tr>
             </thead>
             <tbody>
-              {sortedBacktests.slice(0, 5).map((item) => {
+              {/* 등록 모델 카드가 사라진 만큼 최근 백테스트 행 수를 10개로 확대 */}
+              {sortedBacktests.slice(0, 10).map((item) => {
                 const strategy = strategyMap.get(item.strategy_id)
                 return (
                   <tr key={item.id}>
@@ -704,8 +729,18 @@ const Dashboard = ({ strategies, backtests, models, onOpenBacktest }: { strategi
   )
 }
 
-const KPI = ({ label, value, sub }: { label: string; value: string | number; sub?: string }) => (
-  <div className="kpi">
+const KPI = ({
+  label,
+  value,
+  sub,
+  onClick,
+}: {
+  label: string
+  value: string | number
+  sub?: string
+  onClick?: () => void
+}) => (
+  <div className={`kpi ${onClick ? 'kpi--clickable' : ''}`} onClick={onClick}>
     <span className="kpi__label">{label}</span>
     <span className="kpi__value">{value}</span>
     {sub && <span className="kpi__sub">{sub}</span>}
@@ -1862,7 +1897,14 @@ const App = () => {
             {ICONS.info} {globalError}
           </div>
         )}
-        {page === 'dashboard' && <Dashboard strategies={strategies} backtests={backtests} models={models} onOpenBacktest={setSelectedBacktest} />}
+        {page === 'dashboard' && (
+          <Dashboard
+            strategies={strategies}
+            backtests={backtests}
+            onOpenBacktest={setSelectedBacktest}
+            onNavigate={setPage}
+          />
+        )}
         {page === 'builder' && (
           <StrategyBuilder
             strategies={strategies}
