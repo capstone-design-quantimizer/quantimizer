@@ -46,6 +46,7 @@ class StrategyBase(BaseModel):
                 v["definition"][key] = d[key]
         return v
 
+
 class StrategyCreate(StrategyBase):
     pass
 
@@ -60,10 +61,7 @@ class StrategyUpdate(BaseModel):
     def validate_strategy_json_on_update(cls, v: Optional[Dict[str, Any]]):
         if v is None:
             return v
-        factors = v.get("definition", {}).get("factors", [])
-        if not factors:
-            raise ValueError("At least one factor must be supplied")
-        return v
+        return StrategyBase.validate_strategy_json(v)
 
 
 class StrategyRead(StrategyBase):
