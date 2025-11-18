@@ -195,7 +195,8 @@ body {
    Builder 영역 - 반응형 2단 그룹 레이아웃
    =============================================== */
 
-   /* ---------- Builder layout & panels ---------- */
+/* ---------- Builder layout & panels ---------- */
+
 .builder-layout {
   display: flex;
   flex-direction: column;
@@ -212,7 +213,7 @@ body {
 
 @media (max-width: 1024px) {
   .builder-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; /* 태블릿/모바일에서는 세로 스택 */
   }
 }
 
@@ -524,10 +525,15 @@ body {
 }
 
 /* ---------- Blockly Canvas ---------- */
+
 .blockly {
   border-radius: var(--radius-lg);
   border: 1px dashed rgba(148, 163, 184, 0.6);
-  background: linear-gradient(180deg, rgba(226, 232, 240, 0.35) 0%, rgba(226, 232, 240, 0.15) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(226, 232, 240, 0.35) 0%,
+    rgba(226, 232, 240, 0.15) 100%
+  );
   padding: 24px;
   height: 100%;
   display: flex;
@@ -535,6 +541,7 @@ body {
   gap: 16px;
 }
 
+/* Blockly가 실제로 붙는 컨테이너 */
 .blockly__workspace {
   flex: 1;
   min-height: 420px;
@@ -545,21 +552,26 @@ body {
   background: rgba(255, 255, 255, 0.9);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
 }
-.blockly__workspace .injectionDiv,
+
+.blockly__workspace > .injectionDiv,
 .blockly__workspace .blocklySvg {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
 }
 
 .blockly__title {
   font-weight: 600;
   letter-spacing: 0.01em;
 }
+
 .blockly__description {
   font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.6;
 }
+
 
 .builder-flow {
   display: grid;
