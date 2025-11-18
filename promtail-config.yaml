@@ -14,10 +14,19 @@ scrape_configs:
       - host: unix:///var/run/docker.sock
 
     relabel_configs:
-      - source_labels: [__meta_docker_container_name]
-        regex: "/?(quant-backend|quant-frontend)$"
+      # 1) compose 서비스명이 backend 또는 frontend 인 것만 남김
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        regex: "backend|frontend"
         action: keep
+
+      # 2) 컨테이너 이름을  label 로 노출
+      - source_labels: [__meta_docker_container_name]
+        target_label: container
+        regex: "/?(.*)"
+      
+      # 3) compose 서비스명을 service label 로 노출
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
 
     pipeline_stages:
       - docker: {}
-
