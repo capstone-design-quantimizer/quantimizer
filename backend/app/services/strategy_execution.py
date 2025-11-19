@@ -20,13 +20,13 @@ from app.services.ml_inference import get_onnx_session, score_dataframe
 
 logger = logging.getLogger(__name__)
 
-# ---------- Specs ----------
+
 @dataclass(slots=True)
 class UniverseSpec:
     market: str
     min_market_cap: float | None
-    excludes: Sequence[str]                 # semantic flags; ignored (no columns)
-    exclude_tickers: Sequence[str]          # explicit ticker blacklist
+    excludes: Sequence[str]
+    exclude_tickers: Sequence[str]
 
 
 @dataclass(slots=True)
@@ -56,13 +56,7 @@ class StrategySpec:
     rebalancing: RebalancingSpec
 
 
-# ---------- Config ----------
 FACTOR_COLUMN_MAP: dict[str, str] = {
-    "PER": "per",
-    "PBR": "pbr",
-    "EPS": "eps",
-    "BPS": "bps",
-    "DIVIDENDYIELD": "dividend_yield",
     "PCTCHANGE": "pct_change",
     "RSI_14": "rsi_14",
     "MA_20D": "ma_20d",
@@ -70,6 +64,30 @@ FACTOR_COLUMN_MAP: dict[str, str] = {
     "MOMENTUM_12M": "momentum_12m",
     "VOLATILITY_20D": "volatility_20d",
     "MARKETCAP": "market_cap",
+    "PER": "per",
+    "PBR": "pbr",
+    "EPS": "eps",
+    "BPS": "bps",
+    "DIVIDENDYIELD": "dividend_yield",
+    "ROE": "roe",
+    "ROA": "roa",
+    "OPM": "opm",
+    "GPM": "gpm",
+    "DEBTTOEQUITY": "debt_to_equity",
+    "CURRENTRATIO": "current_ratio",
+    "ASSETTURNOVER": "asset_turnover",
+    "INTERESTCOVERAGE": "interest_coverage",
+}
+
+FINANCIAL_COMPONENTS: dict[str, set[str]] = {
+    "roe": {"Net Income", "Stockholders Equity"},
+    "roa": {"Net Income", "Total Assets"},
+    "opm": {"Operating Income", "Total Revenue"},
+    "gpm": {"Gross Profit", "Total Revenue"},
+    "debt_to_equity": {"Total Debt", "Stockholders Equity"},
+    "current_ratio": {"Current Assets", "Current Liabilities"},
+    "asset_turnover": {"Total Revenue", "Total Assets"},
+    "interest_coverage": {"EBIT", "Interest Expense"},
 }
 
 VALID_MARKETS = {"ALL", "KOSPI", "KOSDAQ"}
@@ -82,12 +100,11 @@ class StrategyExecutionError(RuntimeError):
     pass
 
 
-# ---------- Backtesting glue ----------
 class _EquityReplayStrategy(BTStrategy):
-    def init(self) -> None:  # pragma: no cover
+    def init(self) -> None:
         pass
 
-    def next(self) -> None:  # pragma: no cover
+    def next(self) -> None:
         if not self.position:
             price = float(self.data.Close[-1])
             if price > 0.0:
@@ -96,7 +113,6 @@ class _EquityReplayStrategy(BTStrategy):
                     self.buy(size=size)
 
 
-# ---------- Parse ----------
 def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
     definition = strategy_json.get("definition", strategy_json)
 
@@ -177,23 +193,32 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
         rebalancing=RebalancingSpec(frequency=freq),
     )
 
-# ---------- SQL compile (WITH z-score) ----------
+
 def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, dict[str, Any], list[str]]:
     non_ml = [f for f in spec.factors if f.name != "ML_MODEL" and f.weight != 0.0]
 
+    FINANCIAL_COLS = set(FINANCIAL_COMPONENTS.keys())
+    
     required_cols = {
         "s.event_date", "s.ticker", "s.company_name", "s.market", "s.market_cap",
         "s.close_price", "s.open_price", "s.low_price", "s.pct_change",
         "s.rsi_14", "s.ma_20d", "s.momentum_3m", "s.momentum_12m", "s.volatility_20d",
         "f.per", "f.pbr", "f.eps", "f.bps", "f.dividend_yield"
     }
+    
+    financial_items_needed = set()
+    
     for f in non_ml:
         col = FACTOR_COLUMN_MAP.get(f.name)
-        if col is not None and col not in {
-            "rsi_14", "ma_20d", "momentum_3m", "momentum_12m", "volatility_20d", "market_cap",
-            "per", "pbr", "eps", "bps", "dividend_yield"
-        }:
-            required_cols.add(f"f.{col}")
+        if col is not None:
+            if col in FINANCIAL_COLS:
+                required_cols.add(f"fin.{col}")
+                financial_items_needed.update(FINANCIAL_COMPONENTS[col])
+            elif col not in {
+                "rsi_14", "ma_20d", "momentum_3m", "momentum_12m", "volatility_20d", "market_cap",
+                "per", "pbr", "eps", "bps", "dividend_yield"
+            }:
+                required_cols.add(f"f.{col}")
 
     select_cols = ",\n        ".join(sorted(required_cols))
 
@@ -212,13 +237,53 @@ def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, 
 
     where_sql = " AND ".join(where)
 
+    join_financials_sql = ""
+    if financial_items_needed:
+        item_filters = " OR ".join([f"item_name = '{item}'" for item in financial_items_needed])
+        
+        aggs = []
+        if "roe" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Net Income' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Stockholders Equity' THEN value END), 0)) as roe")
+        if "roa" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Net Income' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Total Assets' THEN value END), 0)) as roa")
+        if "opm" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Operating Income' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Total Revenue' THEN value END), 0)) as opm")
+        if "gpm" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Gross Profit' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Total Revenue' THEN value END), 0)) as gpm")
+        if "debt_to_equity" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Total Debt' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Stockholders Equity' THEN value END), 0)) as debt_to_equity")
+        if "current_ratio" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Current Assets' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Current Liabilities' THEN value END), 0)) as current_ratio")
+        if "asset_turnover" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'Total Revenue' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Total Assets' THEN value END), 0)) as asset_turnover")
+        if "interest_coverage" in [FACTOR_COLUMN_MAP.get(f.name) for f in non_ml]:
+            aggs.append("(MAX(CASE WHEN item_name = 'EBIT' THEN value END) / NULLIF(MAX(CASE WHEN item_name = 'Interest Expense' THEN value END), 0)) as interest_coverage")
+
+        agg_sql = ",\n            ".join(aggs)
+        
+        join_financials_sql = f"""
+    LEFT JOIN LATERAL (
+        SELECT
+            {agg_sql}
+        FROM financials_quarterly fq
+        WHERE fq.ticker = s.ticker
+          AND fq.period_end <= s.event_date
+          AND ({item_filters})
+        GROUP BY fq.period_end
+        ORDER BY fq.period_end DESC
+        LIMIT 1
+    ) fin ON true
+        """
+
     z_terms = []
     used: list[str] = []
     for f in non_ml:
         col = FACTOR_COLUMN_MAP[f.name]
+        raw_col_name = col
+        
         z = (
-            f"({col} - AVG({col}) OVER (PARTITION BY event_date)) "
-            f"/ NULLIF(STDDEV_SAMP({col}) OVER (PARTITION BY event_date), 0)"
+            f"({raw_col_name} - AVG({raw_col_name}) OVER (PARTITION BY event_date)) "
+            f"/ NULLIF(STDDEV_SAMP({raw_col_name}) OVER (PARTITION BY event_date), 0)"
         )
         signed = f"-({z})" if f.direction == "asc" else z
         z_terms.append(f"{float(max(f.weight, 0.0)):.10f} * ({signed})")
@@ -233,6 +298,7 @@ WITH base AS (
     FROM stocks_daily_info AS s
     LEFT JOIN fundamentals_daily AS f
       ON s.event_date = f.event_date AND s.ticker = f.ticker
+    {join_financials_sql}
     WHERE {where_sql}
 ),
 scored AS (
@@ -264,17 +330,12 @@ def _fetch_scored_frame(db: Session, sql: str, params: dict[str, Any]) -> pd.Dat
             "Executed scored SQL",
             extra={"rows": len(df), "duration": elapsed},
         )
-    #
-    # 수정된 부분: 데이터가 없을 때 에러를 발생시키지 않고, 비어있는 데이터프레임을 반환합니다.
-    # if df.empty:
-    #     raise StrategyExecutionError("No market data available for the requested period")
-    #
+
     if not df.empty:
         df["event_date"] = pd.to_datetime(df["event_date"])
     return df
 
 
-# ---------- Post-scoring: ML & ranking ----------
 def _apply_ml_and_rank(
     frame: pd.DataFrame,
     factors: Sequence[FactorSpec],
@@ -302,7 +363,6 @@ def _apply_ml_and_rank(
     return pd.concat(groups).sort_values(["event_date", "final_score"], ascending=[True, False])
 
 
-# ---------- Rebalancing & allocation ----------
 def _determine_rebalancing_dates(frame: pd.DataFrame, frequency: str) -> list[pd.Timestamp]:
     events = frame["event_date"].drop_duplicates().sort_values()
     periods = {"monthly": events.dt.to_period("M"), "quarterly": events.dt.to_period("Q")}[frequency]
@@ -338,7 +398,6 @@ def _build_allocations(
     return allocations
 
 
-# ---------- Price matrix & T+1 exec ----------
 def _prepare_price_matrix(frame: pd.DataFrame) -> pd.DataFrame:
     pivot = (
         frame.pivot_table(index="event_date", columns="ticker", values="close_price", aggfunc="last")
@@ -395,7 +454,6 @@ def _simulate_equity_curve_Tplus1(
     return equity_curve
 
 
-# ---------- Metrics & persist ----------
 def _compute_metrics(equity_curve: dict[date, float], initial_capital: float) -> dict[str, float]:
     if not equity_curve or len(equity_curve) < 2:
         return {"total_return": 0.0, "cagr": 0.0, "volatility": 0.0, "sharpe": 0.0, "max_drawdown": 0.0}
@@ -457,7 +515,6 @@ def _persist_backtest(
     return rec
 
 
-# ---------- Entry ----------
 def execute_strategy(
     db: Session,
     strategy_json: dict[str, Any],
@@ -473,7 +530,6 @@ def execute_strategy(
 
     spec = parse_strategy(strategy_json)
 
-    # Optional ML
     ml_model: MLModel | None = None
     ml_session = None
     ml_factors = [f for f in spec.factors if f.name == "ML_MODEL" and f.model_id]
@@ -485,7 +541,6 @@ def execute_strategy(
             raise StrategyExecutionError("Requested ML model not found")
         ml_session = get_onnx_session(ml_model.file_path)
 
-    # SQL score
     sql, params, used = _build_scored_sql(spec, start_date, end_date)
     universe_scored = _fetch_scored_frame(db, sql, params)
 
@@ -505,18 +560,11 @@ def execute_strategy(
         )
         return {"backtest_id": str(rec.id), "equity_curve": equity_curve_list, "metrics": metrics}
 
-
-    # ML add & rank
     ranked = _apply_ml_and_rank(universe_scored, spec.factors, used, ml_session)
-
-    # allocations
     allocations = _build_allocations(ranked, spec.portfolio, spec.rebalancing.frequency)
-
-    # prices & T+1
     price_matrix = _prepare_price_matrix(universe_scored)
     equity_curve = _simulate_equity_curve_Tplus1(price_matrix, allocations, initial_capital)
 
-    # metrics & persist
     metrics = _compute_metrics(equity_curve, initial_capital)
     _run_backtesting_adapter(equity_curve, initial_capital)
 
