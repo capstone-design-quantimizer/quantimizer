@@ -762,8 +762,8 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
       </svg>
 
       <div className="equity-chart__footer">
-        <span style={{ color: "#22c55e", fontWeight: 600 }}>● 누적 수익률 (좌측)</span>
-        <span style={{ color: "#e11d48", fontWeight: 600 }}>● 최대 낙폭 (우측)</span>
+        <span style={{ color: "#22c55e", fontWeight: 600 }}>● 누적 수익률</span>
+        <span style={{ color: "#e11d48", fontWeight: 600 }}>● 최대 낙폭</span>
       </div>
     </div>
   );
@@ -778,12 +778,6 @@ const PerformanceReport = ({ result }: { result: Backtest }) => {
   return (
     <div className="performance">
       <EquityChart data={curve} />
-
-      <p className="performance__description">
-        X축은 백테스트 기간(거래일), Y축은 포트폴리오 평가액(원)을 의미합니다.
-        녹색 선은 전략의 누적 자산 곡선, 붉은 선은 해당 시점까지의 최대
-        낙폭(드로다운)을 나타냅니다.
-      </p>
 
       <div className="performance__stats">
         {METRIC_LABELS.map(({ key, label, format }) => {
