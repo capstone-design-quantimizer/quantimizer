@@ -568,105 +568,202 @@ const SimpleLineChart = ({ data, series }: SimpleLineChartProps) => {
 };
 
 const EquityChart = ({ data }: { data: EquityPoint[] }) => {
-  const points = useMemo(() => {
+  // 차트 설정 (SVG 내부 좌표계)
+  const WIDTH = 800;
+  const HEIGHT = 400;
+  const PADDING = { TOP: 20, BOTTOM: 30, LEFT: 60, RIGHT: 60 };
+  const CHART_W = WIDTH - PADDING.LEFT - PADDING.RIGHT;
+  const CHART_H = HEIGHT - PADDING.TOP - PADDING.BOTTOM;
+
+  const {
+    equityPoints,
+    drawdownPoints,
+    xLabels,
+    leftTicks,
+    rightTicks,
+    gridLines,
+  } = useMemo(() => {
     if (data.length === 0) {
-      return { equity: "", drawdown: "" };
+      return {
+        equityPoints: "",
+        drawdownPoints: "",
+        xLabels: [],
+        leftTicks: [],
+        rightTicks: [],
+        gridLines: [],
+      };
     }
 
-    // Equity Calculation
-    const equityValues = data.map((item) => item.equity);
-    const minEq = Math.min(...equityValues);
-    const maxEq = Math.max(...equityValues);
-    const denEq = maxEq - minEq || 1;
+    // 1. 데이터 가공
+    // Equity(금액) -> Return(%) 변환
+    const initialEquity = data[0].equity || 1;
+    const returns = data.map((d) => (d.equity - initialEquity) / initialEquity);
+    const drawdowns = data.map((d) => d.drawdown ?? 0); // 0 ~ -0.xx
 
-    const equityPolyline = data
-      .map((item, index) => {
-        const x = (index / Math.max(1, data.length - 1)) * 100;
-        const normalized = (item.equity - minEq) / denEq;
-        const y = 100 - normalized * 100; // 0 is top (high value), 100 is bottom (low value)
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-      })
-      .join(" ");
-
-    // Drawdown Calculation (Scale independent)
-    // Usually drawdown is 0 (top) to negative (bottom).
-    // We map 0 -> y=0 (top of SVG), MinDrawdown -> y=100 (bottom of SVG)
-    // Or simply normalize between its own range.
-    const drawdownValues = data.map((item) => item.drawdown ?? 0);
-    const minDd = Math.min(...drawdownValues); // e.g., -0.2
-    // Max Drawdown is usually 0.
+    // 2. Min/Max 계산
+    const minRet = Math.min(...returns);
+    const maxRet = Math.max(...returns);
+    const minDd = Math.min(...drawdowns);
+    // Drawdown은 보통 0이 최대(낙폭 없음)
     const maxDd = 0; 
-    const denDd = maxDd - minDd || 1; 
 
-    const drawdownPolyline = data
-      .map((item, index) => {
-        const x = (index / Math.max(1, data.length - 1)) * 100;
-        const dd = item.drawdown ?? 0;
-        // Normalize: 0 -> 0 (top), MinDd -> 100 (bottom)
-        // If dd is 0, (0 - (-0.2)) / 0.2 = 1. y = 100 - 100 = 0.
-        // If dd is -0.2, (-0.2 + 0.2) / 0.2 = 0. y = 100 - 0 = 100.
-        const normalized = (dd - minDd) / denDd;
-        const y = 100 - normalized * 100;
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-      })
+    // 여유 공간 확보 (위아래 5% 정도)
+    const retRange = maxRet - minRet || 1;
+    const ddRange = maxDd - minDd || 1;
+    
+    // Y축 스케일링 (Linear Interpolation)
+    // val -> pixel Y
+    const getYRet = (val: number) => {
+      const ratio = (val - minRet) / retRange;
+      // SVG는 y가 아래로 갈수록 커지므로 (1 - ratio)
+      return PADDING.TOP + CHART_H * (1 - ratio);
+    };
+    
+    const getYDd = (val: number) => {
+      const ratio = (val - minDd) / ddRange;
+      return PADDING.TOP + CHART_H * (1 - ratio);
+    };
+
+    // X축 스케일링
+    const getX = (index: number) => {
+      return PADDING.LEFT + (index / (data.length - 1)) * CHART_W;
+    };
+
+    // 3. Polyline 포인트 생성
+    const equityPointsStr = returns
+      .map((val, i) => `${getX(i).toFixed(1)},${getYRet(val).toFixed(1)}`)
       .join(" ");
 
-    return { equity: equityPolyline, drawdown: drawdownPolyline };
-  }, [data]);
+    const drawdownPointsStr = drawdowns
+      .map((val, i) => `${getX(i).toFixed(1)},${getYDd(val).toFixed(1)}`)
+      .join(" ");
 
-  const startLabel = data[0]?.date ? toDateLabel(data[0].date) : "-";
-  const endLabel = data[data.length - 1]?.date
-    ? toDateLabel(data[data.length - 1].date)
-    : "-";
+    // 4. X축 라벨 (날짜) - 5~6개 정도만 표시
+    const xLabelCount = 6;
+    const xLabels = [];
+    for (let i = 0; i < xLabelCount; i++) {
+      const index = Math.round((i * (data.length - 1)) / (xLabelCount - 1));
+      if (data[index]) {
+        xLabels.push({
+          x: getX(index),
+          y: HEIGHT - 5, // 바닥 부근
+          text: toDateLabel(data[index].date),
+        });
+      }
+    }
+
+    // 5. Y축 라벨 및 그리드 (왼쪽: 수익률) - 5개 구간
+    const yTickCount = 5;
+    const leftTicks = [];
+    const gridLines = [];
+    for (let i = 0; i < yTickCount; i++) {
+      const ratio = i / (yTickCount - 1);
+      const val = minRet + ratio * retRange;
+      const y = getYRet(val);
+      leftTicks.push({
+        x: PADDING.LEFT - 10,
+        y: y + 4, // 텍스트 수직 중앙 정렬 보정
+        text: `${(val * 100).toFixed(1)}%`,
+      });
+      // 가로 그리드 라인
+      gridLines.push(y);
+    }
+
+    // 6. Y축 라벨 (오른쪽: 낙폭) - 5개 구간
+    const rightTicks = [];
+    for (let i = 0; i < yTickCount; i++) {
+      const ratio = i / (yTickCount - 1);
+      const val = minDd + ratio * ddRange;
+      const y = getYDd(val);
+      rightTicks.push({
+        x: WIDTH - PADDING.RIGHT + 10,
+        y: y + 4,
+        text: `${(val * 100).toFixed(1)}%`,
+      });
+    }
+
+    return {
+      equityPoints: equityPointsStr,
+      drawdownPoints: drawdownPointsStr,
+      xLabels,
+      leftTicks,
+      rightTicks,
+      gridLines,
+    };
+  }, [data]);
 
   return (
     <div className="equity-chart">
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Equity chart"
-      >
-        <rect
-          x="0"
-          y="0"
-          width="100"
-          height="100"
-          fill="var(--chart-background)"
-        />
-        {/* Drawdown Area/Line */}
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet">
+        {/* 배경 */}
+        <rect width={WIDTH} height={HEIGHT} fill="var(--chart-background)" opacity={0.3} />
+        
+        {/* 그리드 라인 */}
+        {gridLines.map((y, i) => (
+          <line
+            key={i}
+            x1={PADDING.LEFT}
+            y1={y}
+            x2={WIDTH - PADDING.RIGHT}
+            y2={y}
+            className="chart-grid"
+          />
+        ))}
+
+        {/* 데이터 라인 - Drawdown (뒤) */}
         <polyline
-          points={points.drawdown}
-          fill="rgba(248,113,113,0.1)"
-          stroke="rgba(248,113,113,0.6)"
-          strokeWidth={1}
+          points={drawdownPoints}
+          fill="none"
+          stroke="rgba(244, 63, 94, 0.6)"
+          strokeWidth={2}
           strokeLinejoin="round"
-          strokeLinecap="round"
         />
-        {/* Equity Line */}
+        {/* 데이터 라인 - Equity (앞) */}
         <polyline
-          points={points.equity}
+          points={equityPoints}
           fill="none"
           stroke="#22c55e"
-          strokeWidth={1.8}
+          strokeWidth={2}
           strokeLinejoin="round"
-          strokeLinecap="round"
         />
+
+        {/* 축 선 (Y축 좌/우) */}
+        <line 
+          x1={PADDING.LEFT} y1={PADDING.TOP} 
+          x2={PADDING.LEFT} y2={HEIGHT - PADDING.BOTTOM} 
+          className="chart-axis-line" 
+        />
+        <line 
+          x1={WIDTH - PADDING.RIGHT} y1={PADDING.TOP} 
+          x2={WIDTH - PADDING.RIGHT} y2={HEIGHT - PADDING.BOTTOM} 
+          className="chart-axis-line" 
+        />
+
+        {/* X축 텍스트 */}
+        {xLabels.map((label, i) => (
+          <text key={i} x={label.x} y={label.y} className="chart-text chart-text--x">
+            {label.text}
+          </text>
+        ))}
+
+        {/* Y축 왼쪽 텍스트 (Return) */}
+        {leftTicks.map((tick, i) => (
+          <text key={i} x={tick.x} y={tick.y} className="chart-text chart-text--y-left">
+            {tick.text}
+          </text>
+        ))}
+
+        {/* Y축 오른쪽 텍스트 (Drawdown) */}
+        {rightTicks.map((tick, i) => (
+          <text key={i} x={tick.x} y={tick.y} className="chart-text chart-text--y-right">
+            {tick.text}
+          </text>
+        ))}
       </svg>
 
-      <div className="equity-chart__axes">
-        <span className="equity-chart__axis-label">
-          X축: 백테스트 기간(거래일)
-        </span>
-        <span className="equity-chart__axis-label">
-          Y축: 포트폴리오 평가액(원)
-        </span>
-      </div>
-
       <div className="equity-chart__footer">
-        <span>
-          <span className="equity-chart__value">{startLabel}</span> → {endLabel}
-        </span>
+        <span style={{ color: "#22c55e", fontWeight: 600 }}>● 누적 수익률 (좌측)</span>
+        <span style={{ color: "#e11d48", fontWeight: 600 }}>● 최대 낙폭 (우측)</span>
       </div>
     </div>
   );
