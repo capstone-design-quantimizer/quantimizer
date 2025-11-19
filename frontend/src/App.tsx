@@ -1892,7 +1892,7 @@ const normalizeBacktest = (item: Backtest): Backtest => {
 };
 
 const App = () => {
-  const [page, setPage] = useState<PageKey>("builder");
+  const [page, setPage] = useState<PageKey>("dashboard");
   const [tokens, setTokensState] = useState<AuthTokens | null>(() => {
     try {
       const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -2315,7 +2315,7 @@ const App = () => {
 
   const handleLogout = useCallback(() => {
     setTokens(null);
-    setPage("builder");
+    setPage("dashboard");
   }, [setTokens]);
 
   const handleLoginSubmit = useCallback(
