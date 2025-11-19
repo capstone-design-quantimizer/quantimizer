@@ -17,7 +17,16 @@ export type FactorName =
   | 'Volatility_20D'
   | 'MarketCap'
   | 'PctChange'
+  | 'ROE'
+  | 'ROA'
+  | 'OPM'
+  | 'GPM'
+  | 'DebtToEquity'
+  | 'CurrentRatio'
+  | 'AssetTurnover'
+  | 'InterestCoverage'
   | 'ML_MODEL'
+
 export type FactorDirection = 'asc' | 'desc'
 export type PortfolioWeighting = 'equal' | 'market_cap'
 export type RebalancingFrequency = 'monthly' | 'quarterly'
@@ -68,10 +77,10 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
 }
 
 type FactorBlock = any
-
 type ToolboxDefinition = any
 
 const FACTOR_OPTIONS: Array<[string, FactorName]> = [
+  ['--- 시장/기술적 지표 ---', 'PctChange'],
   ['PER (주가수익비율)', 'PER'],
   ['PBR (주가순자산비율)', 'PBR'],
   ['EPS (주당순이익)', 'EPS'],
@@ -84,9 +93,19 @@ const FACTOR_OPTIONS: Array<[string, FactorName]> = [
   ['변동성 20D (Volatility_20D)', 'Volatility_20D'],
   ['시가총액 (MarketCap)', 'MarketCap'],
   ['일간 수익률 (PctChange)', 'PctChange'],
+  ['--- 재무 지표 (수익성) ---', 'ROE'],
+  ['ROE (자기자본이익률)', 'ROE'],
+  ['ROA (총자산이익률)', 'ROA'],
+  ['영업이익률 (OPM)', 'OPM'],
+  ['매출총이익률 (GPM)', 'GPM'],
+  ['--- 재무 지표 (안정성/활동성) ---', 'DebtToEquity'],
+  ['부채비율 (Debt/Equity)', 'DebtToEquity'],
+  ['유동비율 (Current Ratio)', 'CurrentRatio'],
+  ['이자보상배율 (Interest Coverage)', 'InterestCoverage'],
+  ['자산회전율 (Asset Turnover)', 'AssetTurnover'],
+  ['--- 고급 ---', 'ML_MODEL'],
   ['외부 ML 모델', 'ML_MODEL'],
 ]
-
 
 const MARKET_OPTIONS: Array<[string, MarketCode]> = [
   ['KOSPI', 'KOSPI'],
@@ -214,35 +233,34 @@ const initializeBlocks = () => {
   blocksInitialized = true
 
   Blockly.Extensions.register('factor_item_extension', function (this: FactorBlock) {
-  const self = this as FactorBlock
+    const self = this as FactorBlock
 
-  const updateModelVisibility = () => {
-    const input = self.getInput('MODEL')
-    if (!input) return
-    const shouldShow = self.getFieldValue('FACTOR') === 'ML_MODEL'
-    if (input.isVisible() === shouldShow) return
-    Blockly.Events.disable()
-    try {
-      input.setVisible(shouldShow)
-      if (self.rendered) self.render()
-    } finally {
-      Blockly.Events.enable()
+    const updateModelVisibility = () => {
+      const input = self.getInput('MODEL')
+      if (!input) return
+      const shouldShow = self.getFieldValue('FACTOR') === 'ML_MODEL'
+      if (input.isVisible() === shouldShow) return
+      Blockly.Events.disable()
+      try {
+        input.setVisible(shouldShow)
+        if (self.rendered) self.render()
+      } finally {
+        Blockly.Events.enable()
+      }
     }
-  }
 
-  self.updateModelVisibility = updateModelVisibility
-  updateModelVisibility()
-
-  self.setOnChange((e: any) => {
-    if (!e) return
-    if (e.type !== Blockly.Events.BLOCK_CHANGE) return
-    if (e.blockId !== self.id) return
-    if (e.element !== 'field') return
-    if (e.name !== 'FACTOR') return
+    self.updateModelVisibility = updateModelVisibility
     updateModelVisibility()
-  })
-})
 
+    self.setOnChange((e: any) => {
+      if (!e) return
+      if (e.type !== Blockly.Events.BLOCK_CHANGE) return
+      if (e.blockId !== self.id) return
+      if (e.element !== 'field') return
+      if (e.name !== 'FACTOR') return
+      updateModelVisibility()
+    })
+  })
 
   Blockly.defineBlocksWithJsonArray([
     {
@@ -283,8 +301,8 @@ const initializeBlocks = () => {
     },
     {
       type: 'factors_section',
-      message0: '팩터 조합',
-      message1: '팩터 목록 %1',
+      message0: '팩터/지표 조합',
+      message1: '목록 %1',
       args1: [{ type: 'input_statement', name: 'ITEMS', check: 'factor_item' }],
       previousStatement: 'factors_section',
       colour: 220,
@@ -292,7 +310,7 @@ const initializeBlocks = () => {
     },
     {
       type: 'factor_item',
-      message0: '팩터 %1 방향 %2',
+      message0: '지표 %1 방향 %2',
       args0: [
         { type: 'field_dropdown', name: 'FACTOR', options: FACTOR_OPTIONS },
         { type: 'field_dropdown', name: 'DIRECTION', options: DIRECTION_OPTIONS }
@@ -308,7 +326,7 @@ const initializeBlocks = () => {
       previousStatement: 'factor_item',
       nextStatement: 'factor_item',
       colour: 245,
-      tooltip: '하나의 팩터를 정의합니다.',
+      tooltip: '하나의 팩터 혹은 지표를 정의합니다.',
       extensions: ['factor_item_extension']
     },
     {
