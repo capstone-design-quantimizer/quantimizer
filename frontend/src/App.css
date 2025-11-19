@@ -197,49 +197,68 @@ body {
 
 /* ---------- Builder layout & panels ---------- */
 
+/* 전략 빌더 레이아웃 */
 .builder-layout {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
-/* 1행: Blockly 캔버스 + 자주 쓰는 팩터 */
-.builder-main {
+/* 좌·우 2컬럼: Blockly / 백테스트 */
+.builder-main-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr); /*2 : 1.2 비율 */
-  gap: 24px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
 }
 
-@media (max-width: 1024px) {
-  .builder-main {
-    grid-template-columns: 1fr; /* 태블릿/모바일에서는 세로 스택 */
-  }
+/* Blockly 컨테이너 높이 약간 줄이기 */
+.builder-canvas {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: #ffffff;
+  padding: 8px;
+  min-height: 360px;   /* 기존보다 살짝 낮춤 */
 }
 
-.builder-canvas,
-.builder-factors {
-  min-height: 420px;
-}
-
-.builder-factors {
-  display: flex;        
-}
-
-/* 2행: 전체 가로폭 백테스트 결과 */
-.builder-backtest {
-  min-height: 320px;
-}
-
-.builder-backtest .placeholder {
+/* blockly workspace 자체 높이도 줄이기 */
+.blockly__workspace {
   width: 100%;
+  min-height: 340px;
 }
 
-/* 전체 빌더 컨트롤 컨테이너 */
+/* 우측 백테스트 패널 */
+.builder-backtest {
+  display: flex;
+  flex-direction: column;
+}
+
+.builder-backtest--side {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: #ffffff;
+  padding: 12px;
+  min-height: 360px;
+}
+
+/* placeholder를 조금 압축된 버전으로 */
+.placeholder--compact {
+  min-height: 260px;
+}
+
+/* 전략 빌더 상단 컨트롤 */
 .builder-controls {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+}
+
+/* "전략 불러오기" 단독 행 */
+.builder-load-row {
+  display: flex;
+  width: 100%;
+}
+
+.builder-field--full {
   width: 100%;
 }
 
@@ -811,6 +830,25 @@ body {
 .equity-chart__value {
   font-weight: 600;
 }
+/* EquityChart 축 설명 */
+.equity-chart__axes {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.equity-chart__axis-label {
+  white-space: nowrap;
+}
+
+/* Performance 설명 문장 */
+.performance__description {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
 
 .performance__stats {
   display: grid;
@@ -940,6 +978,54 @@ body {
   color: #3730a3;
   border-radius: 999px;
 }
+/* 내 전략 페이지 상단 툴바 */
+.strategy-grid-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.strategy-grid__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.strategy-grid__toolbar-info {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+/* 카드 우측 상단 비교 체크 */
+.strategy-grid__compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* 비교 모달 레이아웃 */
+.compare-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.compare-grid__column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compare-grid__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 
 /* ---------- Auth (Login/Register) ---------- */
 .auth-card {
