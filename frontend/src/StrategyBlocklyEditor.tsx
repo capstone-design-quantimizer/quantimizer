@@ -182,14 +182,6 @@ const TOOLBOX: ToolboxDefinition = {
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'AssetTurnover' } },
       ],
     },
-    {
-      kind: 'category',
-      name: '▶ 고급 (AI/ML)',
-      colour: '#EF4444', // Rose/Red
-      contents: [
-        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ML_MODEL' } },
-      ],
-    },
   ],
 }
 
