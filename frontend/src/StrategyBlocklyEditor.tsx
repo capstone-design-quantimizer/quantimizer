@@ -25,7 +25,6 @@ export type FactorName =
   | 'CurrentRatio'
   | 'AssetTurnover'
   | 'InterestCoverage'
-  | 'ML_MODEL'
 
 export type FactorDirection = 'asc' | 'desc'
 export type PortfolioWeighting = 'equal' | 'market_cap'
@@ -108,9 +107,6 @@ const FACTOR_OPTIONS: Array<[string, FactorName]> = [
   ['유동비율 (Current Ratio)', 'CurrentRatio'],
   ['이자보상배율 (Interest Coverage)', 'InterestCoverage'],
   ['자산회전율 (Asset Turnover)', 'AssetTurnover'],
-  
-  // 고급
-  ['외부 ML 모델', 'ML_MODEL'],
 ]
 
 const MARKET_OPTIONS: Array<[string, MarketCode]> = [
@@ -247,12 +243,7 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
       const validDirection = DIRECTION_OPTIONS.some(([, value]) => value === direction) ? direction : 'desc'
       const weightValue = Number(raw.weight)
       const weight = Number.isFinite(weightValue) ? weightValue : 0
-      if (name === 'ML_MODEL') {
-        const modelId = typeof raw.model_id === 'string' ? raw.model_id.trim() : ''
-        factors.push({ name, direction: validDirection, weight, model_id: modelId })
-      } else {
-        factors.push({ name, direction: validDirection, weight })
-      }
+      factors.push({ name, direction: validDirection, weight })    
     }
     base.factors = factors
   }
@@ -456,10 +447,6 @@ const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
           direction: DIRECTION_OPTIONS.some(([, value]) => value === direction) ? direction : 'desc',
           weight: normalizedWeight,
         }
-        if (name === 'ML_MODEL') {
-          const modelId = current.getFieldValue('MODEL_ID')
-          factor.model_id = typeof modelId === 'string' ? modelId.trim() : ''
-        }
         items.push(factor)
       }
       current = current.getNextBlock()
@@ -517,9 +504,6 @@ const applyStrategyToWorkspace = (workspace: any, config: StrategyConfig) => {
       factorBlock.setFieldValue(factor.name, 'FACTOR')
       factorBlock.setFieldValue(factor.direction, 'DIRECTION')
       factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT')
-      if (factor.name === 'ML_MODEL') {
-        factorBlock.setFieldValue(factor.model_id?.trim() ?? '', 'MODEL_ID')
-      }
       factorBlock.initSvg()
       factorBlock.render()
       factorBlock.updateModelVisibility?.()
@@ -606,7 +590,6 @@ export const StrategyBlocklyEditor = ({
       name,
       direction = 'desc',
       weight = 0.5,
-      model_id = '',
     }) => {
       const root = workspace.getBlocksByType('strategy_root', false)[0]
       if (!root) return
@@ -621,9 +604,6 @@ export const StrategyBlocklyEditor = ({
       }
       if (Number.isFinite(weight)) {
         factorBlock.setFieldValue(String(weight), 'WEIGHT')
-      }
-      if (name === 'ML_MODEL') {
-        factorBlock.setFieldValue(model_id ?? '', 'MODEL_ID')
       }
       factorBlock.initSvg()
       factorBlock.render()
