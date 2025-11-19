@@ -391,7 +391,7 @@ const AuthForm = ({
       try {
         await onLogin(email, password);
       } catch {
-        // 상위 컴포넌트에서 에러를 표시함
+        // handled by parent
       }
       return;
     }
@@ -399,7 +399,7 @@ const AuthForm = ({
     try {
       await onRegister(email, username, password);
     } catch {
-      // 상위 컴포넌트에서 에러를 표시함
+      // handled by parent
     }
   };
 
@@ -573,27 +573,39 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
       return { equity: "", drawdown: "" };
     }
 
+    // Equity Calculation
     const equityValues = data.map((item) => item.equity);
-    const drawdownValues = data.map((item) => item.drawdown ?? 0);
-
-    const allValues = [...equityValues, ...drawdownValues];
-    const minValue = Math.min(...allValues);
-    const maxValue = Math.max(...allValues);
-    const denominator = maxValue - minValue || 1;
+    const minEq = Math.min(...equityValues);
+    const maxEq = Math.max(...equityValues);
+    const denEq = maxEq - minEq || 1;
 
     const equityPolyline = data
       .map((item, index) => {
         const x = (index / Math.max(1, data.length - 1)) * 100;
-        const normalized = (item.equity - minValue) / denominator;
-        const y = 100 - normalized * 100;
+        const normalized = (item.equity - minEq) / denEq;
+        const y = 100 - normalized * 100; // 0 is top (high value), 100 is bottom (low value)
         return `${x.toFixed(2)},${y.toFixed(2)}`;
       })
       .join(" ");
 
+    // Drawdown Calculation (Scale independent)
+    // Usually drawdown is 0 (top) to negative (bottom).
+    // We map 0 -> y=0 (top of SVG), MinDrawdown -> y=100 (bottom of SVG)
+    // Or simply normalize between its own range.
+    const drawdownValues = data.map((item) => item.drawdown ?? 0);
+    const minDd = Math.min(...drawdownValues); // e.g., -0.2
+    // Max Drawdown is usually 0.
+    const maxDd = 0; 
+    const denDd = maxDd - minDd || 1; 
+
     const drawdownPolyline = data
       .map((item, index) => {
         const x = (index / Math.max(1, data.length - 1)) * 100;
-        const normalized = ((item.drawdown ?? 0) - minValue) / denominator;
+        const dd = item.drawdown ?? 0;
+        // Normalize: 0 -> 0 (top), MinDd -> 100 (bottom)
+        // If dd is 0, (0 - (-0.2)) / 0.2 = 1. y = 100 - 100 = 0.
+        // If dd is -0.2, (-0.2 + 0.2) / 0.2 = 0. y = 100 - 0 = 100.
+        const normalized = (dd - minDd) / denDd;
         const y = 100 - normalized * 100;
         return `${x.toFixed(2)},${y.toFixed(2)}`;
       })
@@ -622,19 +634,21 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
           height="100"
           fill="var(--chart-background)"
         />
+        {/* Drawdown Area/Line */}
+        <polyline
+          points={points.drawdown}
+          fill="rgba(248,113,113,0.1)"
+          stroke="rgba(248,113,113,0.6)"
+          strokeWidth={1}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {/* Equity Line */}
         <polyline
           points={points.equity}
           fill="none"
           stroke="#22c55e"
           strokeWidth={1.8}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <polyline
-          points={points.drawdown}
-          fill="rgba(248,113,113,0.18)"
-          stroke="rgba(248,113,113,0.6)"
-          strokeWidth={1}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
@@ -653,7 +667,6 @@ const EquityChart = ({ data }: { data: EquityPoint[] }) => {
         <span>
           <span className="equity-chart__value">{startLabel}</span> → {endLabel}
         </span>
-        <span>green: 누적 자산, red: 최대 낙폭</span>
       </div>
     </div>
   );
@@ -669,7 +682,6 @@ const PerformanceReport = ({ result }: { result: Backtest }) => {
     <div className="performance">
       <EquityChart data={curve} />
 
-      {/* 그래프 텍스트 설명 */}
       <p className="performance__description">
         X축은 백테스트 기간(거래일), Y축은 포트폴리오 평가액(원)을 의미합니다.
         녹색 선은 전략의 누적 자산 곡선, 붉은 선은 해당 시점까지의 최대
@@ -795,7 +807,6 @@ const Dashboard = ({
               </tr>
             </thead>
             <tbody>
-              {/* 등록 모델 카드가 사라진 만큼 최근 백테스트 행 수를 10개로 확대 */}
               {sortedBacktests.slice(0, 10).map((item) => {
                 const strategy = strategyMap.get(item.strategy_id);
                 return (
@@ -849,7 +860,6 @@ const KPI = ({
 
 const StrategyBuilder = ({
   strategies,
-
   onRunBacktest,
   onSaveStrategy,
 }: {
@@ -1063,24 +1073,23 @@ const StrategyBuilder = ({
     [strategies]
   );
 
-  return (
-    <Card title="전략 빌더" icon={ICONS.sliders}>
-      {/* 상단: 전략 불러오기 + 메타/백테스트 입력 */}
-      <div className="builder-controls">
-        {/* 1행: 전략 불러오기 (상위 개념) */}
-        <div className="builder-row">
-          <label className="builder-field">
-            <span className="builder-label">전략 불러오기</span>
-            <Select
-              value={strategyId}
-              onChange={handleStrategySelect}
-              options={strategyOptions}
-            />
-          </label>
-        </div>
+  // 전략 불러오기 셀렉터 (상위 헤더용)
+  const strategyLoader = (
+    <div style={{ width: "220px" }}>
+      <Select
+        value={strategyId}
+        onChange={handleStrategySelect}
+        options={strategyOptions}
+      />
+    </div>
+  );
 
-        {/* 2행: 전략 이름, 설명 */}
-        <div className="builder-row">
+  return (
+    <Card title="전략 빌더" icon={ICONS.sliders} right={strategyLoader}>
+      {/* 상단 Controls */}
+      <div className="builder-controls">
+        {/* Row 1: Name, Description, Capital */}
+        <div className="builder-row builder-row--3">
           <label className="builder-field">
             <span className="builder-label">전략 이름</span>
             <Input
@@ -1097,10 +1106,20 @@ const StrategyBuilder = ({
               placeholder="전략 특징을 요약하세요"
             />
           </label>
+          <label className="builder-field">
+            <span className="builder-label">초기 자금</span>
+            <Input
+              type="number"
+              min={0}
+              step={1000000}
+              value={capital}
+              onChange={handleCapitalChange}
+            />
+          </label>
         </div>
 
-        {/* 3행: 시작일, 종료일, 초기 자금 */}
-        <div className="builder-row">
+        {/* Row 2: Start Date, End Date */}
+        <div className="builder-row builder-row--2">
           <label className="builder-field">
             <span className="builder-label">시작일</span>
             <Input
@@ -1115,16 +1134,6 @@ const StrategyBuilder = ({
               type="date"
               value={end}
               onChange={(e) => setEnd(e.target.value)}
-            />
-          </label>
-          <label className="builder-field">
-            <span className="builder-label">초기 자금</span>
-            <Input
-              type="number"
-              min={0}
-              step={1000000}
-              value={capital}
-              onChange={handleCapitalChange}
             />
           </label>
         </div>
@@ -1149,7 +1158,7 @@ const StrategyBuilder = ({
       </div>
 
       {/* 하단: 좌측 Blockly / 우측 백테스트 결과 */}
-      <div className="builder-layout">
+      <div className="builder-layout" style={{ marginTop: "16px" }}>
         <div className="builder-main-row">
           <div className="builder-canvas">
             <StrategyBlocklyEditor
@@ -1266,7 +1275,6 @@ const MyStrategies = ({
   strategies,
   backtests,
   onRename,
-  onClone,
   onDelete,
 }: {
   strategies: Strategy[];
@@ -1298,6 +1306,10 @@ const MyStrategies = ({
     left: Backtest;
     right: Backtest;
   } | null>(null);
+  const [viewStrategy, setViewStrategy] = useState<{
+    strategy: Strategy;
+    returnVal: number | null;
+  } | null>(null);
 
   const handleRenameClick = async (id: string, currentName: string) => {
     const next = window.prompt("새 전략 이름을 입력하세요.", currentName);
@@ -1309,17 +1321,6 @@ const MyStrategies = ({
         error instanceof Error
           ? error.message
           : "전략 이름을 변경하지 못했습니다."
-      );
-    }
-  };
-
-  const handleCloneClick = async (id: string) => {
-    try {
-      await onClone(id);
-      window.alert("전략이 복제되었습니다.");
-    } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "전략 복제에 실패했습니다."
       );
     }
   };
@@ -1370,8 +1371,7 @@ const MyStrategies = ({
       {/* 상단 비교 툴바 */}
       <div className="strategy-list__toolbar">
         <span className="strategy-list__hint">
-          비교할 전략을 최대 2개까지 체크한 뒤, &ldquo;선택 전략 비교&rdquo;
-          버튼을 눌러주세요.
+          비교할 전략을 최대 2개까지 체크한 뒤, 버튼을 눌러주세요.
         </span>
         <Btn
           variant="primary"
@@ -1415,7 +1415,6 @@ const MyStrategies = ({
                         checked={selected}
                         onChange={() => toggleSelect(item.id)}
                       />
-                      <span>비교 선택</span>
                     </label>
                   </div>
                 }
@@ -1442,15 +1441,17 @@ const MyStrategies = ({
                 <div className="strategy-actions">
                   <Btn
                     variant="secondary"
-                    onClick={() => handleRenameClick(item.id, item.name)}
+                    onClick={() =>
+                      setViewStrategy({ strategy: item, returnVal: totalReturn })
+                    }
                   >
-                    이름 변경
+                    상세
                   </Btn>
                   <Btn
                     variant="secondary"
-                    onClick={() => handleCloneClick(item.id)}
+                    onClick={() => handleRenameClick(item.id, item.name)}
                   >
-                    복제
+                    이름 변경
                   </Btn>
                   <Btn
                     variant="ghost"
@@ -1464,6 +1465,28 @@ const MyStrategies = ({
           })}
         </div>
       )}
+
+      {/* 상세 모달 */}
+      <Modal
+        open={!!viewStrategy}
+        onClose={() => setViewStrategy(null)}
+        title={`전략 상세: ${viewStrategy?.strategy.name ?? ""}`}
+      >
+        {viewStrategy && (
+          <div className="community-json">
+            <div className="community-json__section">
+              <h4>누적 수익률</h4>
+              <p>{formatPercent(viewStrategy.returnVal)}</p>
+            </div>
+            <div className="community-json__section">
+              <h4>전략 JSON</h4>
+              <pre className="modal-json">
+                {JSON.stringify(viewStrategy.strategy.strategy_json, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* 비교 모달: 두 전략의 백테스트 결과 차트를 나란히 */}
       <Modal
@@ -1848,6 +1871,7 @@ const normalizeBacktest = (item: Backtest): Backtest => {
         return {
           date: String(point.date),
           equity: Number.isFinite(rawEquity) ? rawEquity : 0,
+          drawdown: point.drawdown,
         };
       })
     : [];
@@ -2284,7 +2308,6 @@ const App = () => {
         }
         throw new Error(message);
       }
-      // 성공 시 커뮤니티 목록 새로고침
       await loadCommunity();
     },
     [apiFetch, loadCommunity]
