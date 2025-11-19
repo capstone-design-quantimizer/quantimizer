@@ -1276,8 +1276,7 @@ const StrategyBuilder = ({
               <div className="placeholder placeholder--compact">
                 <div className="placeholder__icon">{ICONS.beaker}</div>
                 <p className="placeholder__text">
-                  좌측에서 전략을 구성하고, 위에서 기간과 초기 자금을 설정한 뒤
-                  백테스트를 실행해 보세요.
+                  전략을 구성하고, 백테스트를 실행해 보세요.
                 </p>
               </div>
             )}
