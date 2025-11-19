@@ -216,7 +216,7 @@ def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, 
                 financial_items_needed.update(FINANCIAL_COMPONENTS[col])
             elif col not in {
                 "rsi_14", "ma_20d", "momentum_3m", "momentum_12m", "volatility_20d", "market_cap",
-                "per", "pbr", "eps", "bps", "dividend_yield"
+                "pct_change", "per", "pbr", "eps", "bps", "dividend_yield" 
             }:
                 required_cols.add(f"f.{col}")
 
