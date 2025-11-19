@@ -79,31 +79,37 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
 type FactorBlock = any
 type ToolboxDefinition = any
 
+// 드롭다운 메뉴에 표시될 전체 옵션 목록
 const FACTOR_OPTIONS: Array<[string, FactorName]> = [
-  ['--- 시장/기술적 지표 ---', 'PctChange'],
-  ['PER (주가수익비율)', 'PER'],
-  ['PBR (주가순자산비율)', 'PBR'],
-  ['EPS (주당순이익)', 'EPS'],
-  ['BPS (주당순자산)', 'BPS'],
-  ['배당수익률 (DividendYield)', 'DividendYield'],
+  // 시장/기술적 지표
+  ['일간 수익률 (PctChange)', 'PctChange'],
   ['RSI 14일', 'RSI_14'],
   ['20일 이동평균 (MA_20D)', 'MA_20D'],
   ['모멘텀 3M', 'Momentum_3M'],
   ['모멘텀 12M', 'Momentum_12M'],
   ['변동성 20D (Volatility_20D)', 'Volatility_20D'],
   ['시가총액 (MarketCap)', 'MarketCap'],
-  ['일간 수익률 (PctChange)', 'PctChange'],
-  ['--- 재무 지표 (수익성) ---', 'ROE'],
+  
+  // 가치 지표
+  ['PER (주가수익비율)', 'PER'],
+  ['PBR (주가순자산비율)', 'PBR'],
+  ['EPS (주당순이익)', 'EPS'],
+  ['BPS (주당순자산)', 'BPS'],
+  ['배당수익률 (DividendYield)', 'DividendYield'],
+  
+  // 수익성 지표
   ['ROE (자기자본이익률)', 'ROE'],
   ['ROA (총자산이익률)', 'ROA'],
   ['영업이익률 (OPM)', 'OPM'],
   ['매출총이익률 (GPM)', 'GPM'],
-  ['--- 재무 지표 (안정성/활동성) ---', 'DebtToEquity'],
+  
+  // 안정성/활동성 지표
   ['부채비율 (Debt/Equity)', 'DebtToEquity'],
   ['유동비율 (Current Ratio)', 'CurrentRatio'],
   ['이자보상배율 (Interest Coverage)', 'InterestCoverage'],
   ['자산회전율 (Asset Turnover)', 'AssetTurnover'],
-  ['--- 고급 ---', 'ML_MODEL'],
+  
+  // 고급
   ['외부 ML 모델', 'ML_MODEL'],
 ]
 
@@ -128,18 +134,64 @@ const REBALANCING_OPTIONS: Array<[string, RebalancingFrequency]> = [
   ['분기말', 'quarterly'],
 ]
 
+// [변경] 카테고리를 세분화하고 색상 및 화살표 텍스트 추가
 const TOOLBOX: ToolboxDefinition = {
   kind: 'categoryToolbox',
   contents: [
     {
       kind: 'category',
-      name: '팩터',
-      colour: '#2563EB',
+      name: '▶ 시장 / 기술적 지표',
+      colour: '#3B82F6', // Blue
       contents: [
-        {
-          kind: 'block',
-          type: 'factor_item',
-        },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PctChange' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'RSI_14' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'MA_20D' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'Momentum_3M' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'Momentum_12M' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'Volatility_20D' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'MarketCap' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 가치 지표 (Valuation)',
+      colour: '#6366F1', // Indigo
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PER' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PBR' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'EPS' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'BPS' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'DividendYield' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 수익성 (Profitability)',
+      colour: '#10B981', // Emerald/Teal
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROE' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROA' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'OPM' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'GPM' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 안정성 / 활동성',
+      colour: '#F59E0B', // Amber
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'DebtToEquity' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'CurrentRatio' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'InterestCoverage' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'AssetTurnover' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 고급 (AI/ML)',
+      colour: '#EF4444', // Rose/Red
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ML_MODEL' } },
       ],
     },
   ],
