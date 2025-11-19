@@ -12,7 +12,6 @@ import "./App.css";
 import StrategyBlocklyEditor, {
   DEFAULT_STRATEGY_CONFIG,
   type StrategyConfig,
-  type StrategyWorkspaceAPI,
   normalizeStrategyConfig,
 } from "./StrategyBlocklyEditor";
 
@@ -885,9 +884,6 @@ const StrategyBuilder = ({
   );
   const [builderName, setBuilderName] = useState<string>("");
   const [builderDescription, setBuilderDescription] = useState<string>("");
-  const [workspaceAPI, setWorkspaceAPI] = useState<StrategyWorkspaceAPI | null>(
-    null
-  );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [pendingStrategyId, setPendingStrategyId] = useState<string | null>(
@@ -1159,7 +1155,6 @@ const StrategyBuilder = ({
             <StrategyBlocklyEditor
               value={builderConfig}
               onChange={handleConfigChange}
-              onWorkspaceReady={setWorkspaceAPI}
             />
           </div>
 
