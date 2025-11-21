@@ -21,8 +21,7 @@ type PageKey =
   | "backtests"
   | "strategies"
   | "models"
-  | "community"
-  | "settings";
+  | "community";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "link";
 
@@ -134,7 +133,6 @@ const navTabs: Array<{ id: PageKey; label: string; icon: string }> = [
   { id: "backtests", label: "백테스트", icon: ICONS.beaker },
   { id: "strategies", label: "내 전략", icon: ICONS.layers },
   { id: "community", label: "커뮤니티", icon: ICONS.share },
-  { id: "settings", label: "설정", icon: ICONS.settings },
 ];
 
 const Btn = ({
@@ -183,22 +181,6 @@ const Card = ({
   </section>
 );
 
-const Field = ({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) => (
-  <label className="field">
-    <span className="field__label">{label}</span>
-    {children}
-    {hint && <span className="field__hint">{hint}</span>}
-  </label>
-);
-
 const Input = ({
   className = "",
   ...props
@@ -230,23 +212,6 @@ const Select = ({
       </option>
     ))}
   </select>
-);
-
-const Switch = ({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) => (
-  <button
-    type="button"
-    className={`switch ${checked ? "switch--on" : "switch--off"}`}
-    onClick={() => onChange(!checked)}
-    aria-pressed={checked}
-  >
-    <span className="switch__thumb" />
-  </button>
 );
 
 const Modal = ({
@@ -1296,11 +1261,15 @@ const BacktestsPage = ({
   strategies: Strategy[];
   onSelect: (item: Backtest) => void;
 }) => {
+  const ITEMS_PER_PAGE_BACKTEST = 10;
+  const [page, setPage] = useState(1);
+
   const strategyMap = useMemo(
     () => new Map(strategies.map((item) => [item.id, item])),
     [strategies]
   );
-  const rows = useMemo(
+
+  const allRows = useMemo(
     () =>
       [...backtests].sort(
         (a, b) =>
@@ -1308,6 +1277,16 @@ const BacktestsPage = ({
       ),
     [backtests]
   );
+
+  const totalPages = Math.ceil(allRows.length / ITEMS_PER_PAGE_BACKTEST);
+  const rows = allRows.slice(
+    (page - 1) * ITEMS_PER_PAGE_BACKTEST,
+    page * ITEMS_PER_PAGE_BACKTEST
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [backtests]);
 
   return (
     <div className="page-section">
@@ -1356,6 +1335,27 @@ const BacktestsPage = ({
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div className="pagination">
+            <button
+              className="pagination__btn"
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              이전
+            </button>
+            <span className="pagination__info">
+              {page} / {totalPages}
+            </span>
+            <button
+              className="pagination__btn"
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              다음
+            </button>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1373,6 +1373,9 @@ const MyStrategies = ({
   onClone: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) => {
+  const ITEMS_PER_PAGE_STRATEGY = 12;
+  const [page, setPage] = useState(1);
+
   const backtestsByStrategy = useMemo(() => {
     const map = new Map<string, Backtest[]>();
     backtests.forEach((item) => {
@@ -1456,6 +1459,16 @@ const MyStrategies = ({
     setCompareTargets(null);
   };
 
+  const totalPages = Math.ceil(strategies.length / ITEMS_PER_PAGE_STRATEGY);
+  const displayedStrategies = strategies.slice(
+    (page - 1) * ITEMS_PER_PAGE_STRATEGY,
+    page * ITEMS_PER_PAGE_STRATEGY
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [strategies]);
+
   return (
     <div className="strategy-list">
       {/* 상단 비교 툴바 */}
@@ -1482,78 +1495,104 @@ const MyStrategies = ({
       )}
 
       {strategies.length > 0 && (
-        <div className="strategy-grid">
-          {strategies.map((item) => {
-            const tags = getStrategyTags(item);
-            const latest = backtestsByStrategy.get(item.id)?.[0];
-            const totalReturn = latest?.metrics?.total_return ?? null;
-            const selected = selectedIds.includes(item.id);
+        <>
+          <div className="strategy-grid">
+            {displayedStrategies.map((item) => {
+              const tags = getStrategyTags(item);
+              const latest = backtestsByStrategy.get(item.id)?.[0];
+              const totalReturn = latest?.metrics?.total_return ?? null;
+              const selected = selectedIds.includes(item.id);
 
-            return (
-              <Card
-                key={item.id}
-                title={item.name}
-                icon={ICONS.layers}
-                right={
-                  <div className="strategy-card__header">
-                    <span className="card__meta">
-                      업데이트 {toDateLabel(item.updated_at)}
-                    </span>
-                    <label className="strategy-card__compare">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => toggleSelect(item.id)}
-                      />
-                    </label>
-                  </div>
-                }
-              >
-                <div className="strategy-tags">
-                  {tags.length > 0 ? (
-                    tags.map((tag) => (
-                      <span key={tag} className="tag">
-                        #{tag}
+              return (
+                <Card
+                  key={item.id}
+                  title={item.name}
+                  icon={ICONS.layers}
+                  right={
+                    <div className="strategy-card__header">
+                      <span className="card__meta">
+                        업데이트 {toDateLabel(item.updated_at)}
                       </span>
-                    ))
-                  ) : (
-                    <span className="tag">#strategy</span>
+                      <label className="strategy-card__compare">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSelect(item.id)}
+                        />
+                      </label>
+                    </div>
+                  }
+                >
+                  <div className="strategy-tags">
+                    {tags.length > 0 ? (
+                      tags.map((tag) => (
+                        <span key={tag} className="tag">
+                          #{tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="tag">#strategy</span>
+                    )}
+                  </div>
+
+                  <div className="strategy-ytd">
+                    누적 수익률 {formatPercent(totalReturn)}
+                  </div>
+                  {item.description && (
+                    <p className="strategy-description">{item.description}</p>
                   )}
-                </div>
 
-                <div className="strategy-ytd">
-                  누적 수익률 {formatPercent(totalReturn)}
-                </div>
-                {item.description && (
-                  <p className="strategy-description">{item.description}</p>
-                )}
-
-                <div className="strategy-actions">
-                  <Btn
-                    variant="secondary"
-                    onClick={() =>
-                      setViewStrategy({ strategy: item, returnVal: totalReturn })
-                    }
-                  >
-                    상세
-                  </Btn>
-                  <Btn
-                    variant="secondary"
-                    onClick={() => handleRenameClick(item.id, item.name)}
-                  >
-                    이름 변경
-                  </Btn>
-                  <Btn
-                    variant="ghost"
-                    onClick={() => handleDeleteClick(item.id)}
-                  >
-                    삭제
-                  </Btn>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                  <div className="strategy-actions">
+                    <Btn
+                      variant="secondary"
+                      onClick={() =>
+                        setViewStrategy({
+                          strategy: item,
+                          returnVal: totalReturn,
+                        })
+                      }
+                    >
+                      상세
+                    </Btn>
+                    <Btn
+                      variant="secondary"
+                      onClick={() => handleRenameClick(item.id, item.name)}
+                    >
+                      이름 변경
+                    </Btn>
+                    <Btn
+                      variant="ghost"
+                      onClick={() => handleDeleteClick(item.id)}
+                    >
+                      삭제
+                    </Btn>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                className="pagination__btn"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                이전
+              </button>
+              <span className="pagination__info">
+                {page} / {totalPages}
+              </span>
+              <button
+                className="pagination__btn"
+                disabled={page === totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                다음
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* 상세 모달 */}
@@ -1865,47 +1904,6 @@ const CommunityPage = ({
   );
 };
 
-const SettingsPage = () => {
-  const [rebalance, setRebalance] = useState("M");
-  const [language, setLanguage] = useState("ko");
-  const [darkMode, setDarkMode] = useState(false);
-
-  return (
-    <div className="settings-grid">
-      <Card title="일반" icon={ICONS.settings}>
-        <div className="settings-fields">
-          <Field label="기본 리밸런싱 주기">
-            <Select
-              value={rebalance}
-              onChange={setRebalance}
-              options={[
-                { label: "월말", value: "M" },
-                { label: "분기", value: "Q" },
-              ]}
-            />
-          </Field>
-          <Field label="표시 언어">
-            <Select
-              value={language}
-              onChange={setLanguage}
-              options={[
-                { label: "한국어", value: "ko" },
-                { label: "English", value: "en" },
-              ]}
-            />
-          </Field>
-          <Field label="다크 모드">
-            <div className="settings-switch">
-              <Switch checked={darkMode} onChange={setDarkMode} />
-              <span>실험적</span>
-            </div>
-          </Field>
-        </div>
-      </Card>
-    </div>
-  );
-};
-
 const TopHeader = ({
   page,
   onChange,
@@ -1941,7 +1939,7 @@ const TopHeader = ({
         title="로그아웃"
         onClick={onLogout}
       >
-        {ICONS.logout}
+        로그아웃
       </button>
     </div>
   </header>
@@ -2515,7 +2513,6 @@ const App = () => {
             onCreate={handleCreateCommunityPost}
           />
         )}
-        {page === "settings" && <SettingsPage />}
       </main>
 
       <Modal
