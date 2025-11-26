@@ -22,6 +22,8 @@ class BacktestRead(BaseModel):
     ml_model_id: uuid.UUID | None
     equity_curve: list[dict]
     metrics: dict
+    setting_id: uuid.UUID | None
+    setting_name: str | None
     created_at: datetime
 
     class Config:

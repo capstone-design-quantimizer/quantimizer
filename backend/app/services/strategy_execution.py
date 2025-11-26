@@ -239,8 +239,8 @@ def _build_scored_sql(universe: UniverseSpec, strategy: StrategySpec, start: dat
             {agg_sql}
         FROM financials_quarterly fq
         WHERE fq.ticker = s.ticker
-          AND fq.period_end <= s.event_date
-          AND ({item_filters})
+        AND fq.period_end <= s.event_date
+        AND ({item_filters})
         GROUP BY fq.period_end
         ORDER BY fq.period_end DESC
         LIMIT 1
@@ -471,6 +471,7 @@ def _persist_backtest(
     ml_model: MLModel | None,
     equity_curve_list: list[dict],
     metrics: dict[str, float],
+    setting: BacktestSetting,
 ) -> BacktestResult:
     rec = BacktestResult(
         strategy_id=strategy_id,
@@ -480,6 +481,8 @@ def _persist_backtest(
         ml_model_id=ml_model.id if ml_model else None,
         equity_curve=equity_curve_list,
         metrics=metrics,
+        setting_id=setting.id,
+        setting_name=setting.name,
     )
     db.add(rec)
     db.commit()
@@ -537,6 +540,7 @@ def execute_strategy(
             ml_model=ml_model,
             equity_curve_list=equity_curve_list,
             metrics=metrics,
+            setting=setting,
         )
         return {"backtest_id": str(rec.id), "equity_curve": equity_curve_list, "metrics": metrics}
 
@@ -558,6 +562,7 @@ def execute_strategy(
         ml_model=ml_model,
         equity_curve_list=equity_curve_list,
         metrics=metrics,
+        setting=setting,
     )
 
     return {"backtest_id": str(rec.id), "equity_curve": equity_curve_list, "metrics": metrics}

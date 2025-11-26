@@ -73,3 +73,23 @@ def list_my_backtests(
     )
     total, items = paginate(query, skip, limit)
     return {"total": total, "items": items}
+
+
+@router.delete("/{backtest_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_backtest(
+    backtest_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    backtest = (
+        db.query(BacktestResult)
+        .join(Strategy)
+        .filter(BacktestResult.id == backtest_id, Strategy.owner_id == current_user.id)
+        .one_or_none()
+    )
+    
+    if not backtest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest not found")
+        
+    db.delete(backtest)
+    db.commit()
