@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.models.strategy import Strategy
 from app.models.user import User
 from app.schemas.strategy import StrategyCreate, StrategyRead, StrategyUpdate, StrategyListResponse
-from app.services.strategy_execution import parse_strategy_logic, StrategyExecutionError
+from app.services.strategy_execution import parse_strategy, StrategyExecutionError
 from app.utils.pagination import paginate
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -24,7 +24,7 @@ def create_strategy(
     db: Annotated[Session, Depends(get_db)],
 ):
     try:
-        parse_strategy_logic(strategy_in.strategy_json)
+        parse_strategy(strategy_in.strategy_json)
     except StrategyExecutionError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
@@ -80,7 +80,7 @@ def update_strategy(
         strategy.description = strategy_in.description
     if strategy_in.strategy_json is not None:
         try:
-            parse_strategy_logic(strategy_in.strategy_json)
+            parse_strategy(strategy_in.strategy_json)
         except StrategyExecutionError as e:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
         strategy.strategy_json = strategy_in.strategy_json
