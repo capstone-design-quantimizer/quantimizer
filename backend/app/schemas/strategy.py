@@ -15,14 +15,12 @@ class StrategyBase(BaseModel):
     @field_validator("strategy_json")
     @classmethod
     def validate_strategy_json(cls, v: dict):
-        # flat or nested both supported
         if "definition" in v and isinstance(v["definition"], dict):
             d = v["definition"]
         else:
             d = v
-            v = {"definition": dict(v)}  # canonicalize
+            v = {"definition": dict(v)} 
 
-        # normalize factors
         factors = d.get("factors", [])
         if not isinstance(factors, list) or len(factors) == 0:
             raise ValueError("At least one factor must be supplied")
@@ -40,10 +38,10 @@ class StrategyBase(BaseModel):
             normalized.append(f2)
         v["definition"]["factors"] = normalized
 
-        # carry over other blocks if present
-        for key in ("universe", "portfolio", "rebalancing"):
+        for key in ("portfolio", "rebalancing"):
             if key not in v["definition"] and key in d:
                 v["definition"][key] = d[key]
+        
         return v
 
 

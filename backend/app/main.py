@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.logging_config import setup_logging
 from app.core.config import get_settings
 from app.db.session import Base, engine
-from app.routers import auth, backtests, community, ml_models, strategies
+from app.routers import auth, backtests, backtest_settings, community, ml_models, strategies
 
 setup_logging()
 settings = get_settings()
@@ -39,5 +39,6 @@ def health_check() -> dict[str, str]:
 app.include_router(auth.router)
 app.include_router(strategies.router)
 app.include_router(backtests.router)
+app.include_router(backtest_settings.router)
 app.include_router(ml_models.router)
 app.include_router(community.router)

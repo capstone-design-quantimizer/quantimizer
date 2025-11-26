@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.backtest import BacktestResult
+from app.models.backtest_setting import BacktestSetting
 from app.models.ml_model import MLModel
 from app.services.ml_inference import get_onnx_session, score_dataframe
 
@@ -26,7 +27,6 @@ class UniverseSpec:
     market: str
     min_market_cap: float | None
     excludes: Sequence[str]
-    exclude_tickers: Sequence[str]
 
 
 @dataclass(slots=True)
@@ -50,7 +50,6 @@ class RebalancingSpec:
 
 @dataclass(slots=True)
 class StrategySpec:
-    universe: UniverseSpec
     factors: list[FactorSpec]
     portfolio: PortfolioSpec
     rebalancing: RebalancingSpec
@@ -113,28 +112,8 @@ class _EquityReplayStrategy(BTStrategy):
                     self.buy(size=size)
 
 
-def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
+def parse_strategy_logic(strategy_json: dict[str, Any]) -> StrategySpec:
     definition = strategy_json.get("definition", strategy_json)
-
-    uni = definition.get("universe") or {}
-    market = str(uni.get("market", "ALL")).upper()
-    if market not in VALID_MARKETS:
-        raise StrategyExecutionError(f"Unsupported market '{market}'")
-
-    mmc = uni.get("min_market_cap")
-    if mmc is not None:
-        try:
-            mmc = float(mmc)
-        except (TypeError, ValueError) as exc:
-            raise StrategyExecutionError("min_market_cap must be numeric") from exc
-
-    excludes = uni.get("exclude") or []
-    if not isinstance(excludes, Iterable) or isinstance(excludes, (str, bytes)):
-        raise StrategyExecutionError("universe.exclude must be a list")
-
-    exclude_tickers = uni.get("exclude_tickers") or []
-    if not isinstance(exclude_tickers, Iterable) or isinstance(exclude_tickers, (str, bytes)):
-        raise StrategyExecutionError("universe.exclude_tickers must be a list")
 
     facs_raw = definition.get("factors") or []
     if not facs_raw:
@@ -182,20 +161,14 @@ def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
         raise StrategyExecutionError(f"Unsupported rebalancing frequency '{freq}'")
 
     return StrategySpec(
-        universe=UniverseSpec(
-            market=market,
-            min_market_cap=mmc,
-            excludes=list(excludes),
-            exclude_tickers=list(exclude_tickers),
-        ),
         factors=facs,
         portfolio=PortfolioSpec(top_n=top_n, weight_method=weight_method),
         rebalancing=RebalancingSpec(frequency=freq),
     )
 
 
-def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, dict[str, Any], list[str]]:
-    non_ml = [f for f in spec.factors if f.name != "ML_MODEL" and f.weight != 0.0]
+def _build_scored_sql(universe: UniverseSpec, strategy: StrategySpec, start: date, end: date) -> tuple[str, dict[str, Any], list[str]]:
+    non_ml = [f for f in strategy.factors if f.name != "ML_MODEL" and f.weight != 0.0]
 
     FINANCIAL_COLS = set(FINANCIAL_COMPONENTS.keys())
     
@@ -225,15 +198,14 @@ def _build_scored_sql(spec: StrategySpec, start: date, end: date) -> tuple[str, 
     where = ["s.event_date BETWEEN :start_date AND :end_date"]
     params: dict[str, Any] = {"start_date": start, "end_date": end}
 
-    if spec.universe.market != "ALL":
+    if universe.market != "ALL":
         where.append("s.market = :market")
-        params["market"] = spec.universe.market
-    if spec.universe.min_market_cap is not None:
+        params["market"] = universe.market
+    if universe.min_market_cap is not None:
         where.append("COALESCE(s.market_cap, 0) >= :min_market_cap")
-        params["min_market_cap"] = spec.universe.min_market_cap
-    if spec.universe.exclude_tickers:
-        where.append("s.ticker <> ALL(:exclude_tickers)")
-        params["exclude_tickers"] = list(spec.universe.exclude_tickers)
+        params["min_market_cap"] = universe.min_market_cap
+    if universe.excludes:
+        pass 
 
     where_sql = " AND ".join(where)
 
@@ -493,6 +465,7 @@ def _run_backtesting_adapter(equity_curve: dict[date, float], initial_capital: f
 def _persist_backtest(
     db: Session,
     strategy_id: uuid.UUID,
+    setting_id: uuid.UUID,
     start: date,
     end: date,
     initial_capital: float,
@@ -502,6 +475,7 @@ def _persist_backtest(
 ) -> BacktestResult:
     rec = BacktestResult(
         strategy_id=strategy_id,
+        setting_id=setting_id,
         start_date=start,
         end_date=end,
         initial_capital=initial_capital,
@@ -518,30 +492,38 @@ def _persist_backtest(
 def execute_strategy(
     db: Session,
     strategy_json: dict[str, Any],
-    start_date: date,
-    end_date: date,
-    initial_capital: float,
+    setting: BacktestSetting,
     strategy_id: uuid.UUID,
+    ml_model_id: uuid.UUID | None = None
 ) -> dict[str, Any]:
+    
+    start_date = setting.start_date
+    end_date = setting.end_date
+    initial_capital = float(setting.initial_capital)
+
     if start_date >= end_date:
         raise StrategyExecutionError("start_date must be before end_date")
     if initial_capital <= 0:
         raise StrategyExecutionError("initial_capital must be positive")
 
-    spec = parse_strategy(strategy_json)
+    universe_spec = UniverseSpec(
+        market=setting.market,
+        min_market_cap=float(setting.min_market_cap),
+        excludes=setting.exclude_list
+    )
+    
+    strategy_spec = parse_strategy_logic(strategy_json)
 
     ml_model: MLModel | None = None
     ml_session = None
-    ml_factors = [f for f in spec.factors if f.name == "ML_MODEL" and f.model_id]
-    if ml_factors and float(ml_factors[0].weight) != 0.0:
-        model_id = ml_factors[0].model_id
-        assert model_id is not None
-        ml_model = db.get(MLModel, model_id)
+    
+    if ml_model_id:
+        ml_model = db.get(MLModel, ml_model_id)
         if not ml_model:
             raise StrategyExecutionError("Requested ML model not found")
         ml_session = get_onnx_session(ml_model.file_path)
 
-    sql, params, used = _build_scored_sql(spec, start_date, end_date)
+    sql, params, used = _build_scored_sql(universe_spec, strategy_spec, start_date, end_date)
     universe_scored = _fetch_scored_frame(db, sql, params)
 
     if universe_scored.empty:
@@ -551,6 +533,7 @@ def execute_strategy(
         rec = _persist_backtest(
             db=db,
             strategy_id=strategy_id,
+            setting_id=setting.id,
             start=start_date,
             end=end_date,
             initial_capital=initial_capital,
@@ -560,8 +543,8 @@ def execute_strategy(
         )
         return {"backtest_id": str(rec.id), "equity_curve": equity_curve_list, "metrics": metrics}
 
-    ranked = _apply_ml_and_rank(universe_scored, spec.factors, used, ml_session)
-    allocations = _build_allocations(ranked, spec.portfolio, spec.rebalancing.frequency)
+    ranked = _apply_ml_and_rank(universe_scored, strategy_spec.factors, used, ml_session)
+    allocations = _build_allocations(ranked, strategy_spec.portfolio, strategy_spec.rebalancing.frequency)
     price_matrix = _prepare_price_matrix(universe_scored)
     equity_curve = _simulate_equity_curve_Tplus1(price_matrix, allocations, initial_capital)
 
@@ -572,6 +555,7 @@ def execute_strategy(
     rec = _persist_backtest(
         db=db,
         strategy_id=strategy_id,
+        setting_id=setting.id,
         start=start_date,
         end=end_date,
         initial_capital=initial_capital,
