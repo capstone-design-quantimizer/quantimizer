@@ -11,7 +11,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
 if TYPE_CHECKING:
-    from app.models.backtest import BacktestResult
     from app.models.user import User
 
 
@@ -38,4 +37,3 @@ class BacktestSetting(Base):
     )
 
     owner: Mapped["User"] = relationship("User")
-    backtests: Mapped[list["BacktestResult"]] = relationship("BacktestResult", back_populates="setting")

@@ -13,7 +13,6 @@ from app.db.session import Base
 if TYPE_CHECKING:
     from app.models.ml_model import MLModel
     from app.models.strategy import Strategy
-    from app.models.backtest_setting import BacktestSetting
 
 
 class BacktestResult(Base):
@@ -22,9 +21,6 @@ class BacktestResult(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     strategy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    setting_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("backtest_settings.id", ondelete="SET NULL"), nullable=True, index=True
     )
     
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -40,5 +36,4 @@ class BacktestResult(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     strategy: Mapped["Strategy"] = relationship("Strategy", back_populates="backtests")
-    setting: Mapped["BacktestSetting | None"] = relationship("BacktestSetting", back_populates="backtests")
     ml_model: Mapped["MLModel | None"] = relationship("MLModel", back_populates="backtests")

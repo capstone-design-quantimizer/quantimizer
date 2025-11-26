@@ -465,7 +465,6 @@ def _run_backtesting_adapter(equity_curve: dict[date, float], initial_capital: f
 def _persist_backtest(
     db: Session,
     strategy_id: uuid.UUID,
-    setting_id: uuid.UUID,
     start: date,
     end: date,
     initial_capital: float,
@@ -475,7 +474,6 @@ def _persist_backtest(
 ) -> BacktestResult:
     rec = BacktestResult(
         strategy_id=strategy_id,
-        setting_id=setting_id,
         start_date=start,
         end_date=end,
         initial_capital=initial_capital,
@@ -533,7 +531,6 @@ def execute_strategy(
         rec = _persist_backtest(
             db=db,
             strategy_id=strategy_id,
-            setting_id=setting.id,
             start=start_date,
             end=end_date,
             initial_capital=initial_capital,
@@ -555,7 +552,6 @@ def execute_strategy(
     rec = _persist_backtest(
         db=db,
         strategy_id=strategy_id,
-        setting_id=setting.id,
         start=start_date,
         end=end_date,
         initial_capital=initial_capital,
