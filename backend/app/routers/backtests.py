@@ -71,4 +71,5 @@ def list_my_backtests(
         .filter(Strategy.owner_id == current_user.id)
         .order_by(BacktestResult.created_at.desc())
     )
-    return paginate(query, skip, limit)
+    total, items = paginate(query, skip, limit)
+    return {"total": total, "items": items}
