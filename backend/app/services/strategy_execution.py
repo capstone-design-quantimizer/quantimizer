@@ -112,7 +112,7 @@ class _EquityReplayStrategy(BTStrategy):
                     self.buy(size=size)
 
 
-def parse_strategy_logic(strategy_json: dict[str, Any]) -> StrategySpec:
+def parse_strategy(strategy_json: dict[str, Any]) -> StrategySpec:
     definition = strategy_json.get("definition", strategy_json)
 
     facs_raw = definition.get("factors") or []
@@ -512,7 +512,7 @@ def execute_strategy(
         excludes=setting.exclude_list
     )
     
-    strategy_spec = parse_strategy_logic(strategy_json)
+    strategy_spec = parse_strategy(strategy_json)
 
     ml_model: MLModel | None = None
     ml_session = None
