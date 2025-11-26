@@ -24,6 +24,7 @@ type PageKey =
   | "builder"
   | "backtests"
   | "strategies"
+  | "settings"
   | "community";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "link";
@@ -66,6 +67,7 @@ interface Backtest {
   id: string;
   strategy_id: string;
   setting_id: string | null;
+  setting_name: string | null;
   start_date: string;
   end_date: string;
   initial_capital: number;
@@ -73,7 +75,7 @@ interface Backtest {
   equity_curve: EquityPoint[];
   metrics: Record<string, number>;
   created_at: string;
-  setting?: BacktestSetting | null; // Joined info
+  setting?: BacktestSetting | null;
 }
 
 interface CommunityStrategySummary {
@@ -144,9 +146,10 @@ const ICONS: Record<string, string> = {
 
 const navTabs: Array<{ id: PageKey; label: string; icon: string }> = [
   { id: "dashboard", label: "대시보드", icon: ICONS.home },
-  { id: "builder", label: "전략 빌더", icon: ICONS.sliders },
-  { id: "backtests", label: "백테스트", icon: ICONS.beaker },
   { id: "strategies", label: "내 전략", icon: ICONS.layers },
+  { id: "builder", label: "전략 빌더", icon: ICONS.sliders },
+  { id: "settings", label: "백테스트 조건", icon: ICONS.settings },
+  { id: "backtests", label: "백테스트 내역", icon: ICONS.beaker },
   { id: "community", label: "커뮤니티", icon: ICONS.share },
 ];
 
@@ -155,12 +158,12 @@ const METRIC_LABELS: Array<{
   label: string;
   format?: (value: number) => string;
 }> = [
-  { key: "total_return", label: "누적 수익률", format: (v) => formatPercent(v, 2) },
-  { key: "cagr", label: "CAGR", format: (v) => formatPercent(v, 2) },
-  { key: "max_drawdown", label: "최대 낙폭", format: (v) => formatPercent(v, 2) },
-  { key: "volatility", label: "연환산 변동성", format: (v) => formatPercent(v, 2) },
-  { key: "sharpe", label: "Sharpe Ratio", format: (v) => v.toFixed(2) },
-];
+    { key: "total_return", label: "누적 수익률", format: (v) => formatPercent(v, 2) },
+    { key: "cagr", label: "CAGR", format: (v) => formatPercent(v, 2) },
+    { key: "max_drawdown", label: "최대 낙폭", format: (v) => formatPercent(v, 2) },
+    { key: "volatility", label: "연환산 변동성", format: (v) => formatPercent(v, 2) },
+    { key: "sharpe", label: "Sharpe Ratio", format: (v) => v.toFixed(2) },
+  ];
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -192,7 +195,7 @@ const buildDrawdownSeries = (curve: EquityPoint[]): EquityPoint[] => {
 };
 
 // -----------------------------------------------------------------------------
-// Components
+// UI Components
 // -----------------------------------------------------------------------------
 
 const Btn = ({
@@ -277,109 +280,133 @@ const Modal = ({ open, onClose, title, children }: { open: boolean; onClose: () 
   );
 };
 
-const EquityChart = ({ data }: { data: EquityPoint[] }) => {
-  // Chart dimensions
+// -----------------------------------------------------------------------------
+// Specialized Components
+// -----------------------------------------------------------------------------
+
+const EquityChart = ({ data, comparisonData }: { data: EquityPoint[], comparisonData?: { label: string, data: EquityPoint[] }[] }) => {
   const WIDTH = 800;
   const HEIGHT = 300;
   const PADDING = { TOP: 20, BOTTOM: 30, LEFT: 60, RIGHT: 60 };
   const CHART_W = WIDTH - PADDING.LEFT - PADDING.RIGHT;
   const CHART_H = HEIGHT - PADDING.TOP - PADDING.BOTTOM;
 
-  const { equityPoints, drawdownPoints, xLabels, leftTicks, rightTicks, gridLines } = useMemo(() => {
-    if (data.length === 0) {
-      return { equityPoints: "", drawdownPoints: "", xLabels: [], leftTicks: [], rightTicks: [], gridLines: [] };
+  const allPoints = useMemo(() => {
+    let points = [...data];
+    if (comparisonData) {
+      comparisonData.forEach(cd => points = points.concat(cd.data));
+    }
+    return points;
+  }, [data, comparisonData]);
+
+  const { paths, xLabels, leftTicks, gridLines } = useMemo(() => {
+    if (allPoints.length === 0) {
+      return { paths: [], xLabels: [], leftTicks: [], rightTicks: [], gridLines: [] };
     }
 
-    const initialEquity = data[0].equity || 1;
-    const returns = data.map((d) => (d.equity - initialEquity) / initialEquity);
-    const drawdowns = data.map((d) => d.drawdown ?? 0);
+    const dates = allPoints.map(p => new Date(p.date).getTime());
+    const minDate = Math.min(...dates);
+    const maxDate = Math.max(...dates);
+    const dateRange = maxDate - minDate || 1;
 
-    const minRet = Math.min(...returns);
-    const maxRet = Math.max(...returns);
-    const minDd = Math.min(...drawdowns);
-    
+    const normalize = (pts: EquityPoint[]) => {
+      if (pts.length === 0) return [];
+      const startEq = pts[0].equity;
+      return pts.map(p => ({ ...p, ret: (p.equity - startEq) / startEq }));
+    };
+
+    const mainNorm = normalize(data);
+    const compNorms = comparisonData?.map(c => ({ label: c.label, points: normalize(c.data) })) || [];
+
+    const allRets = mainNorm.map(p => p.ret).concat(compNorms.flatMap(c => c.points.map(p => p.ret)));
+    const minRet = Math.min(...allRets);
+    const maxRet = Math.max(...allRets);
     const retRange = (maxRet - minRet) || 1;
-    const ddRange = (0 - minDd) || 1; 
 
-    const getYRet = (val: number) => PADDING.TOP + CHART_H * (1 - (val - minRet) / retRange);
-    const getYDd = (val: number) => PADDING.TOP + CHART_H * (1 - (val - minDd) / ddRange);
-    const getX = (index: number) => PADDING.LEFT + (index / (data.length - 1)) * CHART_W;
+    const getX = (dateStr: string) => {
+      const t = new Date(dateStr).getTime();
+      return PADDING.LEFT + ((t - minDate) / dateRange) * CHART_W;
+    };
+    const getY = (ret: number) => PADDING.TOP + CHART_H * (1 - (ret - minRet) / retRange);
 
-    const equityPointsStr = returns.map((val, i) => `${getX(i).toFixed(1)},${getYRet(val).toFixed(1)}`).join(" ");
-    const drawdownPointsStr = drawdowns.map((val, i) => `${getX(i).toFixed(1)},${getYDd(val).toFixed(1)}`).join(" ");
+    const makePath = (pts: { date: string, ret: number }[]) => {
+      return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(p.date).toFixed(1)} ${getY(p.ret).toFixed(1)}`).join(" ");
+    };
+
+    const paths = [
+      { d: makePath(mainNorm), color: "#22c55e", strokeWidth: 2 },
+      ...compNorms.map((c, i) => ({
+        d: makePath(c.points),
+        color: ["#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"][i % 4],
+        strokeWidth: 1.5,
+        label: c.label
+      }))
+    ];
 
     const xLabelCount = 6;
     const xLabels = [];
     for (let i = 0; i < xLabelCount; i++) {
-      const index = Math.round((i * (data.length - 1)) / (xLabelCount - 1));
-      if (data[index]) xLabels.push({ x: getX(index), y: HEIGHT - 5, text: toDateLabel(data[index].date) });
+      const t = minDate + (i / (xLabelCount - 1)) * dateRange;
+      xLabels.push({ x: PADDING.LEFT + (i / (xLabelCount - 1)) * CHART_W, y: HEIGHT - 5, text: toDateLabel(new Date(t).toISOString()) });
     }
 
     const yTickCount = 5;
     const leftTicks = [];
-    const rightTicks = [];
     const gridLines = [];
     for (let i = 0; i < yTickCount; i++) {
       const ratio = i / (yTickCount - 1);
-      
       const retVal = minRet + ratio * retRange;
-      const yRet = getYRet(retVal);
-      leftTicks.push({ x: PADDING.LEFT - 10, y: yRet + 4, text: `${(retVal * 100).toFixed(1)}%` });
-      gridLines.push(yRet);
-
-      const ddVal = minDd + ratio * ddRange;
-      const yDd = getYDd(ddVal);
-      rightTicks.push({ x: WIDTH - PADDING.RIGHT + 10, y: yDd + 4, text: `${(ddVal * 100).toFixed(1)}%` });
+      const y = getY(retVal);
+      leftTicks.push({ x: PADDING.LEFT - 10, y: y + 4, text: `${(retVal * 100).toFixed(1)}%` });
+      gridLines.push(y);
     }
 
-    return { equityPoints: equityPointsStr, drawdownPoints: drawdownPointsStr, xLabels, leftTicks, rightTicks, gridLines };
-  }, [data]);
+    return { paths, xLabels, leftTicks, rightTicks: [], gridLines };
+  }, [data, comparisonData, allPoints]);
 
   return (
     <div className="equity-chart">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="xMidYMid meet">
         <rect width={WIDTH} height={HEIGHT} fill="var(--chart-background)" opacity={0.3} />
         {gridLines.map((y, i) => <line key={i} x1={PADDING.LEFT} y1={y} x2={WIDTH - PADDING.RIGHT} y2={y} className="chart-grid" />)}
-        <polyline points={drawdownPoints} fill="none" stroke="rgba(244, 63, 94, 0.6)" strokeWidth={2} strokeLinejoin="round" />
-        <polyline points={equityPoints} fill="none" stroke="#22c55e" strokeWidth={2} strokeLinejoin="round" />
-        
-        {/* Axis Lines */}
+
+        {paths.map((p, i) => (
+          <path key={i} d={p.d} fill="none" stroke={p.color} strokeWidth={p.strokeWidth} strokeLinejoin="round" />
+        ))}
+
         <line x1={PADDING.LEFT} y1={PADDING.TOP} x2={PADDING.LEFT} y2={HEIGHT - PADDING.BOTTOM} className="chart-axis-line" />
         <line x1={WIDTH - PADDING.RIGHT} y1={PADDING.TOP} x2={WIDTH - PADDING.RIGHT} y2={HEIGHT - PADDING.BOTTOM} className="chart-axis-line" />
-        
-        {/* Labels */}
+
         {xLabels.map((l, i) => <text key={i} x={l.x} y={l.y} className="chart-text chart-text--x">{l.text}</text>)}
         {leftTicks.map((l, i) => <text key={i} x={l.x} y={l.y} className="chart-text chart-text--y-left">{l.text}</text>)}
-        {rightTicks.map((l, i) => <text key={i} x={l.x} y={l.y} className="chart-text chart-text--y-right">{l.text}</text>)}
       </svg>
-      <div className="equity-chart__footer">
-        <span style={{ color: "#22c55e", fontWeight: 600 }}>● 누적 수익률</span>
-        <span style={{ color: "#e11d48", fontWeight: 600 }}>● 최대 낙폭</span>
-      </div>
+      {comparisonData && (
+        <div className="chart-legend">
+          <div className="legend-item"><span style={{ backgroundColor: "#22c55e" }}></span> Current</div>
+          {comparisonData.map((c, i) => (
+            <div key={i} className="legend-item">
+              <span style={{ backgroundColor: ["#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"][i % 4] }}></span>
+              {c.label}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
-const PerformanceReport = ({ result }: { result: Backtest }) => {
-  const curve = useMemo(() => buildDrawdownSeries(result.equity_curve ?? []), [result.equity_curve]);
-  return (
-    <div className="performance">
-      <EquityChart data={curve} />
-      <div className="performance__stats">
-        {METRIC_LABELS.map(({ key, label, format }) => {
-          const raw = result.metrics?.[key] ?? NaN;
-          const text = format ? format(raw) : (Number.isNaN(raw) ? "-" : raw.toFixed(2));
-          return (
-            <div key={key} className="performance__stat">
-              <div className="performance__stat-label">{label}</div>
-              <span className="performance__stat-value">{text}</span>
-            </div>
-          );
-        })}
+const PerformanceReport = ({ metrics }: { metrics: Record<string, number> }) => (
+  <div className="metrics-grid">
+    {METRIC_LABELS.map(({ key, label, format }) => (
+      <div key={key} className="metric-card">
+        <div className="metric-card__label">{label}</div>
+        <div className="metric-card__value">
+          {metrics && metrics[key] !== undefined ? (format ? format(metrics[key]) : metrics[key]) : "-"}
+        </div>
       </div>
-    </div>
-  );
-};
+    ))}
+  </div>
+);
 
 const KPI = ({ label, value, sub, onClick }: { label: string; value: string | number; sub?: string; onClick?: () => void }) => (
   <div className={`kpi ${onClick ? "kpi--clickable" : ""}`} onClick={onClick}>
@@ -409,9 +436,9 @@ const AuthForm = ({
     event.preventDefault();
     if (loading) return;
     if (mode === "login") {
-      try { await onLogin(email, password); } catch {}
+      try { await onLogin(email, password); } catch { }
     } else {
-      try { await onRegister(email, username, password); } catch {}
+      try { await onRegister(email, username, password); } catch { }
     }
   };
 
@@ -449,22 +476,22 @@ const AuthForm = ({
 // Pages
 // -----------------------------------------------------------------------------
 
-const Dashboard = ({
-  strategies,
-  backtests,
-  onOpenBacktest,
-  onNavigate,
-}: {
-  strategies: Strategy[];
-  backtests: Backtest[];
-  onOpenBacktest: (item: Backtest) => void;
-  onNavigate: (page: PageKey) => void;
-}) => {
-  const strategyMap = useMemo(() => new Map(strategies.map((item) => [item.id, item])), [strategies]);
-  const [sortMethod, setSortMethod] = useState<"latest" | "return">("latest");
+const Dashboard = ({ token, onNavigate }: { token: string, onNavigate: (page: PageKey) => void }) => {
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [sortMethod, setSortMethod] = useState<"latest" | "return">("latest");
 
-  // Sort backtests based on selected method
+  useEffect(() => {
+    Promise.all([
+      fetch(`${API_BASE_URL}/strategies?limit=100`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API_BASE_URL}/backtests?limit=10`, { headers: { Authorization: `Bearer ${token}` } })
+    ]).then(async ([sRes, bRes]) => {
+      if (sRes.ok) setStrategies((await sRes.json()).items);
+      if (bRes.ok) setBacktests((await bRes.json()).items);
+    });
+  }, [token]);
+
   const sortedBacktests = useMemo(() => {
     const list = [...backtests];
     if (sortMethod === "latest") {
@@ -474,15 +501,9 @@ const Dashboard = ({
     }
   }, [backtests, sortMethod]);
 
-  // Get top 3 for carousel
   const top3 = sortedBacktests.slice(0, 3);
-  
-  // Most recent one for KPI stats (Always latest regardless of sort)
-  const latestBacktest = backtests.length > 0 
-    ? [...backtests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] 
-    : null;
+  const latestBacktest = backtests.length > 0 ? backtests[0] : null;
 
-  // Auto-play carousel
   useEffect(() => {
     const timer = setInterval(() => {
       if (top3.length > 1) setCurrentSlide((prev) => (prev + 1) % top3.length);
@@ -492,28 +513,22 @@ const Dashboard = ({
 
   return (
     <div className="page-section">
-      {/* KPI Grid */}
       <div className="kpi-grid">
-        <KPI label="투자 모델" value={strategies.length} sub="등록된 전략 수" onClick={() => onNavigate("strategies")} />
+        <KPI label="보유 전략" value={strategies.length} sub="개" onClick={() => onNavigate("strategies")} />
         <KPI
-          label="대표 모델 누적 수익률"
+          label="최근 수익률"
           value={latestBacktest ? formatPercent(latestBacktest.metrics?.total_return) : "-"}
-          sub={
-            latestBacktest && latestBacktest.setting
-              ? `${formatNumber(latestBacktest.setting.initial_capital)}원 | ${strategyMap.get(latestBacktest.strategy_id)?.name ?? ""} | ${latestBacktest.setting.start_date}~`
-              : "데이터 없음"
-          }
+          sub={latestBacktest ? `${latestBacktest.setting_name}` : "데이터 없음"}
           onClick={() => onNavigate("strategies")}
         />
         <KPI
           label="최근 백테스트"
-          value={latestBacktest ? latestBacktest.created_at.slice(0, 10) : "-"}
-          sub={latestBacktest ? strategyMap.get(latestBacktest.strategy_id)?.name : "-"}
+          value={latestBacktest ? new Date(latestBacktest.created_at).toLocaleDateString() : "-"}
+          sub="날짜"
           onClick={() => onNavigate("backtests")}
         />
       </div>
 
-      {/* Equity Curve Carousel */}
       <Card
         title="전략 에쿼티 커브 슬라이드"
         icon={ICONS.chart}
@@ -533,12 +548,12 @@ const Dashboard = ({
             <div className="carousel__inner" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
               {top3.map((bt) => {
                 const curve = buildDrawdownSeries(bt.equity_curve);
+                const stratName = strategies.find(s => s.id === bt.strategy_id)?.name || "Unknown";
                 return (
                   <div key={bt.id} className="carousel__slide">
                     <div className="carousel__metrics">
-                      <div className="carousel__metric-row">전략: <span className="carousel__metric-value">{strategyMap.get(bt.strategy_id)?.name}</span></div>
+                      <div className="carousel__metric-row">전략: <span className="carousel__metric-value">{stratName}</span></div>
                       <div className="carousel__metric-row">수익률: <span className="carousel__metric-value">{formatPercent(bt.metrics.total_return)}</span></div>
-                      <div className="carousel__metric-row">MDD: <span className="carousel__metric-value">{formatPercent(bt.metrics.max_drawdown)}</span></div>
                     </div>
                     <EquityChart data={curve} />
                   </div>
@@ -548,603 +563,680 @@ const Dashboard = ({
           </div>
         ) : (
           <div className="placeholder">
-            <div className="placeholder__icon">{ICONS.chart}</div>
-            <p className="placeholder__text">최근 백테스트 결과가 없습니다.</p>
+            <p>최근 백테스트 결과가 없습니다.</p>
           </div>
         )}
       </Card>
+    </div>
+  );
+};
 
-      {/* Recent Backtests Table */}
-      <Card title="최근 백테스트" icon={ICONS.beaker}>
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>전략 이름</th>
-                <th>백테스트 날짜</th>
-                <th>설정</th>
-                <th>CAGR</th>
-                <th>MDD</th>
-                <th>Sharpe</th>
-                <th>보기</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedBacktests.slice(0, 10).map((item) => {
-                const strategy = strategyMap.get(item.strategy_id);
-                return (
-                  <tr key={item.id}>
-                    <td>{strategy?.name ?? "-"}</td>
-                    <td>{new Date(item.created_at).toLocaleString()}</td>
-                    <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{item.setting?.name ?? "-"}</td>
-                    <td>{formatPercent(item.metrics?.cagr)}</td>
-                    <td>{formatPercent(item.metrics?.max_drawdown)}</td>
-                    <td>{item.metrics?.sharpe?.toFixed(2) ?? "-"}</td>
-                    <td>
-                      <Btn variant="ghost" onClick={() => onOpenBacktest(item)}>상세</Btn>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+const BacktestSettingsPage = ({
+  token,
+}: {
+  token: string;
+}) => {
+  const [settings, setSettings] = useState<BacktestSetting[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Partial<BacktestSetting>>({});
+
+  const ITEMS_PER_PAGE = 10;
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const offset = (page - 1) * ITEMS_PER_PAGE;
+      const res = await fetch(`${API_BASE_URL}/backtest-settings?skip=${offset}&limit=${ITEMS_PER_PAGE}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: BacktestSettingListResponse = await res.json();
+        setSettings(data.items);
+        setTotal(data.total);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [token, page]);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const handleCreate = () => {
+    setEditingId(NEW_SETTING_ID);
+    setFormData({
+      name: "새 설정",
+      market: "KOSPI",
+      min_market_cap: 0,
+      exclude_list: [],
+      start_date: "2020-01-01",
+      end_date: "2023-12-31",
+      initial_capital: 100000000,
+    });
+  };
+
+  const handleEdit = (setting: BacktestSetting) => {
+    setEditingId(setting.id);
+    setFormData(setting);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    await fetch(`${API_BASE_URL}/backtest-settings/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    fetchSettings();
+  };
+
+  const handleSave = async () => {
+    const url = editingId === NEW_SETTING_ID
+      ? `${API_BASE_URL}/backtest-settings`
+      : `${API_BASE_URL}/backtest-settings/${editingId}`;
+    const method = editingId === NEW_SETTING_ID ? "POST" : "PUT";
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(formData),
+    });
+
+    if (res.ok) {
+      setEditingId(null);
+      fetchSettings();
+    } else {
+      alert("저장 실패");
+    }
+  };
+
+  if (editingId) {
+    return (
+      <Card title={editingId === NEW_SETTING_ID ? "새 설정 생성" : "설정 수정"}>
+        <div className="form-group">
+          <label>설정 이름</label>
+          <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>시장</label>
+            <Select options={[{ label: "KOSPI", value: "KOSPI" }, { label: "KOSDAQ", value: "KOSDAQ" }, { label: "ALL", value: "ALL" }]}
+              value={formData.market || "KOSPI"} onChange={v => setFormData({ ...formData, market: v })} />
+          </div>
+          <div className="form-group">
+            <label>최소 시가총액 (원)</label>
+            <Input type="number" value={formData.min_market_cap} onChange={e => setFormData({ ...formData, min_market_cap: Number(e.target.value) })} />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>시작일</label>
+            <Input type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>종료일</label>
+            <Input type="date" value={formData.end_date} onChange={e => setFormData({ ...formData, end_date: e.target.value })} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label>초기 자본금</label>
+          <Input type="number" value={formData.initial_capital} onChange={e => setFormData({ ...formData, initial_capital: Number(e.target.value) })} />
+        </div>
+        <div className="form-actions">
+          <Btn onClick={handleSave}>저장</Btn>
+          <Btn variant="secondary" onClick={() => setEditingId(null)}>취소</Btn>
         </div>
       </Card>
+    );
+  }
+
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+
+  return (
+    <div className="page-container">
+      <div className="page-header">
+        <h2>백테스트 조건</h2>
+        <Btn onClick={handleCreate}>+ 새 조건 만들기</Btn>
+      </div>
+      {loading && <div className="alert alert--info">로딩 중...</div>}
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>시장</th>
+            <th>기간</th>
+            <th>초기자본</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {settings.map(s => (
+            <tr key={s.id}>
+              <td>{s.name}</td>
+              <td>{s.market}</td>
+              <td>{s.start_date} ~ {s.end_date}</td>
+              <td>{formatNumber(s.initial_capital)}</td>
+              <td>
+                <Btn variant="ghost" onClick={() => handleEdit(s)}>{ICONS.edit}</Btn>
+                <Btn variant="ghost" onClick={() => handleDelete(s.id)}>{ICONS.trash}</Btn>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button className="pagination__btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>이전</button>
+          <span>{page} / {totalPages}</span>
+          <button className="pagination__btn" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>다음</button>
+        </div>
+      )}
     </div>
   );
 };
 
 const StrategyBuilder = ({
-  strategies,
-  settings,
-  onRunBacktest,
-  onSaveStrategy,
-  onSaveSetting,
+  token,
+  strategyId,
+  onSave,
 }: {
-  strategies: Strategy[];
-  settings: BacktestSetting[];
-  onRunBacktest: (params: { strategyId: string; settingId: string; mlModelId: string | null }) => Promise<Backtest>;
-  onSaveStrategy: (params: { id?: string; name: string; description?: string | null; strategy_json: StrategyConfig }) => Promise<Strategy>;
-  onSaveSetting: (params: Omit<BacktestSetting, "id" | "owner_id" | "created_at">) => Promise<BacktestSetting>;
+  token: string;
+  strategyId: string;
+  onSave: () => void;
 }) => {
-  const [strategyId, setStrategyId] = useState<string>(NEW_STRATEGY_ID);
-  const [settingId, setSettingId] = useState<string>(settings.length > 0 ? settings[0].id : NEW_SETTING_ID);
-
-  const [builderConfig, setBuilderConfig] = useState<StrategyConfig>(() => normalizeStrategyConfig(DEFAULT_STRATEGY_CONFIG));
-  const [builderName, setBuilderName] = useState<string>("");
-  const [builderDescription, setBuilderDescription] = useState<string>("");
-
-  const [settingForm, setSettingForm] = useState({
-    name: "기본 설정",
-    market: "ALL",
-    min_market_cap: 0,
-    exclude_list: [] as string[],
-    start_date: new Date(new Date().setFullYear(new Date().getFullYear() - 5)).toISOString().slice(0, 10),
-    end_date: new Date().toISOString().slice(0, 10),
-    initial_capital: 10000000,
-  });
-
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<Backtest | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Sync Setting Form when settingId changes
-  useEffect(() => {
-    if (settingId === NEW_SETTING_ID) {
-      setSettingForm({
-        name: "", market: "ALL", min_market_cap: 0, exclude_list: [],
-        start_date: "2020-01-01", end_date: "2023-12-31", initial_capital: 10000000,
-      });
-    } else {
-      const found = settings.find((s) => s.id === settingId);
-      if (found) {
-        setSettingForm({
-          name: found.name,
-          market: found.market,
-          min_market_cap: found.min_market_cap,
-          exclude_list: found.exclude_list,
-          start_date: found.start_date,
-          end_date: found.end_date,
-          initial_capital: found.initial_capital,
-        });
-      }
-    }
-  }, [settingId, settings]);
-
-  // Sync Strategy Logic when strategyId changes
-  const selectedStrategy = useMemo(() => (strategyId === NEW_STRATEGY_ID ? null : strategies.find((item) => item.id === strategyId) ?? null), [strategies, strategyId]);
+  const [config, setConfig] = useState<StrategyConfig>(DEFAULT_STRATEGY_CONFIG);
+  const [name, setName] = useState("새 전략");
+  const [settings, setSettings] = useState<BacktestSetting[]>([]);
+  const [selectedSettingId, setSelectedSettingId] = useState<string>("");
+  const [backtestResult, setBacktestResult] = useState<Backtest | null>(null);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     if (strategyId === NEW_STRATEGY_ID) {
-      setBuilderConfig(normalizeStrategyConfig(DEFAULT_STRATEGY_CONFIG));
-      setBuilderName("");
-      setBuilderDescription("");
-      setResult(null);
-    } else if (selectedStrategy) {
-      setBuilderConfig(normalizeStrategyConfig(selectedStrategy.strategy_json));
-      setBuilderName(selectedStrategy.name);
-      setBuilderDescription(selectedStrategy.description ?? "");
-      setResult(null);
-    }
-  }, [strategyId, selectedStrategy]);
-
-  const handleConfigChange = useCallback((next: StrategyConfig) => {
-    setBuilderConfig(next);
-    setResult(null);
-    setSuccessMessage(null);
-    setError(null);
-  }, []);
-
-  const handleSaveStrategy = async () => {
-    if (!builderName.trim()) return setError("전략 이름을 입력하세요.");
-    setSaving(true);
-    try {
-      const saved = await onSaveStrategy({
-        id: strategyId === NEW_STRATEGY_ID ? undefined : strategyId,
-        name: builderName,
-        description: builderDescription,
-        strategy_json: builderConfig,
-      });
-      setSuccessMessage("전략이 저장되었습니다.");
-      setStrategyId(saved.id);
-    } catch (e) {
-      setError("전략 저장 실패");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveCurrentSetting = async () => {
-    if (!settingForm.name.trim()) return alert("설정 이름을 입력하세요");
-    try {
-      const saved = await onSaveSetting(settingForm);
-      setSettingId(saved.id);
-      alert("백테스트 설정이 저장되었습니다.");
-    } catch (e) {
-      alert("설정 저장 실패");
-    }
-  };
-
-  const runBacktest = async () => {
-    if (strategyId === NEW_STRATEGY_ID) return setError("저장된 전략을 선택하세요.");
-    if (settingId === NEW_SETTING_ID) {
-      if (!confirm("현재 설정이 저장되지 않았습니다. 저장 후 실행하시겠습니까?")) return;
-      await handleSaveCurrentSetting();
+      setConfig(DEFAULT_STRATEGY_CONFIG);
+      setName("새 전략");
       return;
     }
-    setIsRunning(true);
-    setError(null);
+    fetch(`${API_BASE_URL}/strategies/${strategyId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data: Strategy) => {
+        setName(data.name);
+        setConfig(normalizeStrategyConfig(data.strategy_json));
+      });
+  }, [strategyId, token]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/backtest-settings?limit=100`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data: BacktestSettingListResponse) => {
+        setSettings(data.items);
+        if (data.items.length > 0) setSelectedSettingId(data.items[0].id);
+      });
+  }, [token]);
+
+  const handleSave = async () => {
+    const url = strategyId === NEW_STRATEGY_ID ? `${API_BASE_URL}/strategies` : `${API_BASE_URL}/strategies/${strategyId}`;
+    const method = strategyId === NEW_STRATEGY_ID ? "POST" : "PUT";
+
+    await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, strategy_json: config }),
+    });
+    onSave();
+  };
+
+  const handleRunBacktest = async () => {
+    if (!selectedSettingId) {
+      alert("백테스트 조건을 선택해주세요.");
+      return;
+    }
+    setRunning(true);
     try {
-      const data = await onRunBacktest({ strategyId, settingId, mlModelId: null });
-      setResult(data);
+      let currentStrategyId = strategyId;
+      if (strategyId === NEW_STRATEGY_ID) {
+        const res = await fetch(`${API_BASE_URL}/strategies`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name, strategy_json: config }),
+        });
+        const data = await res.json();
+        currentStrategyId = data.id;
+        onSave();
+      } else {
+        await fetch(`${API_BASE_URL}/strategies/${strategyId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name, strategy_json: config }),
+        });
+      }
+
+      const res = await fetch(`${API_BASE_URL}/backtests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ strategy_id: currentStrategyId, setting_id: selectedSettingId }),
+      });
+
+      if (!res.ok) throw new Error("Backtest failed");
+      const result: Backtest = await res.json();
+      setBacktestResult(result);
     } catch (e) {
-      setError("백테스트 실행 실패");
+      alert("백테스트 실행 중 오류가 발생했습니다.");
     } finally {
-      setIsRunning(false);
+      setRunning(false);
     }
   };
 
   return (
-    <Card
-      title="전략 빌더"
-      icon={ICONS.sliders}
-      right={
-        <div style={{ width: "220px" }}>
-          <Select
-            value={strategyId}
-            onChange={setStrategyId}
-            options={[{ label: "새 전략 만들기", value: NEW_STRATEGY_ID }, ...strategies.map((s) => ({ label: s.name, value: s.id }))]}
-          />
-        </div>
-      }
-    >
-      <div className="builder-controls">
-        <div className="builder-row builder-row--2">
-          <label className="builder-field">
-            <span className="builder-label">전략 이름</span>
-            <Input value={builderName} onChange={(e) => setBuilderName(e.target.value)} />
-          </label>
-          <label className="builder-field">
-            <span className="builder-label">설명</span>
-            <Input value={builderDescription} onChange={(e) => setBuilderDescription(e.target.value)} />
-          </label>
-        </div>
-        <div className="builder-buttons">
-          <Btn variant="primary" onClick={handleSaveStrategy} disabled={saving}>
-            {ICONS.save} 전략 저장
-          </Btn>
+    <div className="builder-container">
+      <div className="builder-header">
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="strategy-name-input" />
+        <div className="builder-actions">
+          <Btn variant="secondary" onClick={handleSave}>저장</Btn>
         </div>
       </div>
 
-      <div className="builder-layout" style={{ marginTop: "16px" }}>
-        <div className="builder-main-row">
-          <div className="builder-canvas">
-            <StrategyBlocklyEditor value={builderConfig} onChange={handleConfigChange} />
-          </div>
-
+      <div className="builder-content">
+        <div className="editor-pane">
+          <StrategyBlocklyEditor value={config} onChange={setConfig} />
+        </div>
+        <div className="result-pane">
           <div className="builder-backtest builder-backtest--side">
             <div className="setting-form">
-              <div className="setting-form__header">백테스트 조건 설정</div>
+              <div className="setting-form__header">백테스트 실행</div>
+              <label style={{ fontSize: "0.85rem", marginBottom: "4px", display: "block" }}>조건 선택</label>
               <Select
-                value={settingId}
-                onChange={setSettingId}
-                options={[{ label: "+ 새 설정", value: NEW_SETTING_ID }, ...settings.map((s) => ({ label: s.name, value: s.id }))]}
+                options={settings.map(s => ({ label: s.name, value: s.id }))}
+                value={selectedSettingId}
+                onChange={setSelectedSettingId}
               />
-              <Input placeholder="설정 이름" value={settingForm.name} onChange={(e) => setSettingForm({ ...settingForm, name: e.target.value })} />
-              <div className="builder-row builder-row--2">
-                <Select
-                  value={settingForm.market}
-                  onChange={(e) => setSettingForm({ ...settingForm, market: e })}
-                  options={[{ label: "ALL", value: "ALL" }, { label: "KOSPI", value: "KOSPI" }, { label: "KOSDAQ", value: "KOSDAQ" }]}
-                />
-                <Input
-                  type="number"
-                  placeholder="최소 시총(억)"
-                  value={settingForm.min_market_cap}
-                  onChange={(e) => setSettingForm({ ...settingForm, min_market_cap: Number(e.target.value) })}
-                />
-              </div>
-              <div className="builder-row builder-row--2">
-                <Input type="date" value={settingForm.start_date} onChange={(e) => setSettingForm({ ...settingForm, start_date: e.target.value })} />
-                <Input type="date" value={settingForm.end_date} onChange={(e) => setSettingForm({ ...settingForm, end_date: e.target.value })} />
-              </div>
-              <Input
-                type="number"
-                placeholder="초기 자본"
-                value={settingForm.initial_capital}
-                onChange={(e) => setSettingForm({ ...settingForm, initial_capital: Number(e.target.value) })}
-              />
-              <div className="builder-buttons">
-                <Btn variant="secondary" onClick={handleSaveCurrentSetting}>
-                  설정 저장
-                </Btn>
-                <Btn variant="primary" onClick={runBacktest} disabled={isRunning}>
-                  {isRunning ? "실행 중..." : "백테스트 실행"}
-                </Btn>
+              <div className="builder-buttons" style={{ marginTop: "12px" }}>
+                <Btn onClick={handleRunBacktest} disabled={running}>{running ? "실행 중..." : "백테스트 실행"}</Btn>
               </div>
             </div>
-
-            {error && <div className="alert alert--error">{error}</div>}
-            {successMessage && <div className="alert alert--success">{successMessage}</div>}
-            {result && <PerformanceReport result={result} />}
+            {backtestResult && (
+              <div style={{ marginTop: "16px" }}>
+                <h3 style={{ margin: "0 0 12px 0", fontSize: "1rem" }}>결과</h3>
+                <EquityChart data={backtestResult.equity_curve} />
+                <PerformanceReport metrics={backtestResult.metrics} />
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 
-const BacktestsPage = ({ backtests, strategies, onSelect }: { backtests: Backtest[]; strategies: Strategy[]; onSelect: (item: Backtest) => void }) => {
-  const ITEMS_PER_PAGE = 10;
-  const [page, setPage] = useState(1);
-  const strategyMap = useMemo(() => new Map(strategies.map((s) => [s.id, s])), [strategies]);
+const BacktestsPage = ({ token }: { token: string }) => {
+  const [backtests, setBacktests] = useState<Backtest[]>([]);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [filterStrategyId, setFilterStrategyId] = useState<string>("ALL");
+  const [selectedBacktest, setSelectedBacktest] = useState<Backtest | null>(null);
 
-  const sorted = useMemo(() => [...backtests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [backtests]);
-  const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
-  const rows = sorted.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const fetchBacktests = useCallback(async () => {
+    const res = await fetch(`${API_BASE_URL}/backtests?limit=100`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data: BacktestListResponse = await res.json();
+      setBacktests(data.items);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchBacktests();
+    fetch(`${API_BASE_URL}/strategies`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then((data: StrategyListResponse) => setStrategies(data.items));
+  }, [fetchBacktests, token]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("삭제하시겠습니까?")) return;
+    await fetch(`${API_BASE_URL}/backtests/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    fetchBacktests();
+  };
+
+  const filtered = filterStrategyId === "ALL"
+    ? backtests
+    : backtests.filter(b => b.strategy_id === filterStrategyId);
 
   return (
-    <div className="page-section">
-      <Card title="백테스트 내역" icon={ICONS.beaker}>
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>전략</th>
-                <th>설정명</th>
-                <th>기간</th>
-                <th>CAGR</th>
-                <th>MDD</th>
-                <th>액션</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr key={item.id}>
-                  <td>{strategyMap.get(item.strategy_id)?.name ?? "-"}</td>
-                  <td>{item.setting?.name ?? "-"}</td>
-                  <td>
-                    {toDateLabel(item.start_date)} ~ {toDateLabel(item.end_date)}
-                  </td>
-                  <td>{formatPercent(item.metrics?.cagr)}</td>
-                  <td>{formatPercent(item.metrics?.max_drawdown)}</td>
-                  <td>
-                    <Btn variant="ghost" onClick={() => onSelect(item)}>
-                      자세히
-                    </Btn>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div className="pagination">
-            <button className="pagination__btn" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-              이전
-            </button>
-            <span>
-              {page} / {totalPages}
-            </span>
-            <button className="pagination__btn" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
-              다음
-            </button>
-          </div>
+    <div className="page-container">
+      <div className="page-header">
+        <h2>백테스트 내역</h2>
+        <Select
+          options={[{ label: "전체 전략", value: "ALL" }, ...strategies.map(s => ({ label: s.name, value: s.id }))]}
+          value={filterStrategyId}
+          onChange={setFilterStrategyId}
+        />
+      </div>
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>전략</th>
+            <th>조건</th>
+            <th>실행일</th>
+            <th>기간</th>
+            <th>CAGR</th>
+            <th>MDD</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map(b => (
+            <tr key={b.id}>
+              <td>{strategies.find(s => s.id === b.strategy_id)?.name || "Unknown"}</td>
+              <td>{b.setting_name || "-"}</td>
+              <td>{new Date(b.created_at).toLocaleDateString()}</td>
+              <td>{b.start_date} ~ {b.end_date}</td>
+              <td>{formatPercent(b.metrics.cagr)}</td>
+              <td>{formatPercent(b.metrics.max_drawdown)}</td>
+              <td>
+                <Btn variant="ghost" onClick={() => setSelectedBacktest(b)}>자세히</Btn>
+                <Btn variant="ghost" onClick={() => handleDelete(b.id)}>{ICONS.trash}</Btn>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Modal open={!!selectedBacktest} onClose={() => setSelectedBacktest(null)} title="백테스트 상세">
+        {selectedBacktest && (
+          <>
+            <EquityChart data={selectedBacktest.equity_curve} />
+            <PerformanceReport metrics={selectedBacktest.metrics} />
+          </>
         )}
-      </Card>
+      </Modal>
     </div>
   );
 };
 
 const MyStrategies = ({
-  strategies,
-  backtests,
-  onDelete,
+  token,
+  onEdit
 }: {
-  strategies: Strategy[];
-  backtests: Backtest[];
-  settings: BacktestSetting[];
-  onRename: (id: string, name: string) => Promise<void>;
-  onClone: (id: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  token: string;
+  onEdit: (id: string) => void;
 }) => {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [compareTargets, setCompareTargets] = useState<{ left: Backtest; right: Backtest } | null>(null);
-
-  const getBestBacktestForStrategy = (strategyId: string) => {
-    const related = backtests.filter((b) => b.strategy_id === strategyId);
-    if (related.length === 0) return null;
-    return related.sort((a, b) => (b.metrics?.total_return ?? 0) - (a.metrics?.total_return ?? 0))[0];
-  };
-
-  const handleCompareClick = () => {
-    if (selectedIds.length !== 2) return;
-    const bt1 = getBestBacktestForStrategy(selectedIds[0]);
-    const bt2 = getBestBacktestForStrategy(selectedIds[1]);
-    if (!bt1 || !bt2) {
-      alert("비교할 백테스트 결과가 부족한 전략이 포함되어 있습니다.");
-      return;
-    }
-    setCompareTargets({ left: bt1, right: bt2 });
-  };
-
-  return (
-    <div className="strategy-list">
-      <div className="strategy-list__toolbar">
-        <span className="strategy-list__hint">비교할 전략 2개를 선택하세요.</span>
-        <Btn variant="primary" onClick={handleCompareClick} disabled={selectedIds.length !== 2}>
-          전략 비교
-        </Btn>
-      </div>
-
-      <div className="strategy-grid">
-        {strategies.map((item) => {
-          const best = getBestBacktestForStrategy(item.id);
-          const selected = selectedIds.includes(item.id);
-          return (
-            <Card
-              key={item.id}
-              title={item.name}
-              right={
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  onChange={() => setSelectedIds((prev) => (prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id].slice(0, 2)))}
-                />
-              }
-            >
-              <div className="strategy-ytd">최고 수익률: {formatPercent(best?.metrics?.total_return)}</div>
-              <div className="card__meta">조건: {best?.setting?.name ?? "없음"}</div>
-              <div className="strategy-actions">
-                <Btn variant="ghost" onClick={() => onDelete(item.id)}>
-                  삭제
-                </Btn>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Modal open={!!compareTargets} onClose={() => setCompareTargets(null)} title="전략 비교">
-        {compareTargets && (
-          <div className="compare-grid">
-            <div className="compare-grid__column">
-              <h4>전략 A ({compareTargets.left.setting?.name})</h4>
-              <PerformanceReport result={compareTargets.left} />
-            </div>
-            <div className="compare-grid__column">
-              <h4>전략 B ({compareTargets.right.setting?.name})</h4>
-              <PerformanceReport result={compareTargets.right} />
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-};
-
-// -----------------------------------------------------------------------------
-// App Root
-// -----------------------------------------------------------------------------
-
-const App = () => {
-  const [page, setPage] = useState<PageKey>("dashboard");
-  const [tokens, setTokensState] = useState<AuthTokens | null>(() => {
-    try {
-      const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  });
-
   const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [backtests, setBacktests] = useState<Backtest[]>([]);
-  const [settings, setSettings] = useState<BacktestSetting[]>([]);
-  const [, setCommunityItems] = useState<CommunityFeedItem[]>([]);
-  const [selectedBacktest, setSelectedBacktest] = useState<Backtest | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [selectedBacktestIds, setSelectedBacktestIds] = useState<Set<string>>(new Set());
 
-  const setTokens = useCallback((next: AuthTokens | null) => {
-    setTokensState(next);
-    if (next) localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(next));
-    else localStorage.removeItem(TOKEN_STORAGE_KEY);
-  }, []);
-
-  const apiFetch = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const headers = new Headers(init?.headers ?? {});
-      if (tokens?.accessToken) headers.set("Authorization", `Bearer ${tokens.accessToken}`);
-      return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
-    },
-    [tokens]
-  );
-
-  // Normalize Backtest (ensure numbers)
-  const normalizeBacktest = useCallback((item: Backtest): Backtest => {
-    const initialCapital = Number(item.initial_capital);
-    const equityCurve = Array.isArray(item.equity_curve)
-      ? item.equity_curve.map((point) => ({
-          date: String(point.date),
-          equity: Number(point.equity),
-          drawdown: point.drawdown,
-        }))
-      : [];
-    return {
-      ...item,
-      initial_capital: Number.isFinite(initialCapital) ? initialCapital : 0,
-      equity_curve: equityCurve,
-    };
-  }, []);
-
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [sRes, bRes, setRes, cRes] = await Promise.all([
-        apiFetch("/strategies?limit=100"),
-        apiFetch("/backtests?limit=100"),
-        apiFetch("/backtest-settings?limit=100"),
-        apiFetch("/community/posts"),
-      ]);
-      if (sRes.ok) setStrategies(((await sRes.json()) as StrategyListResponse).items);
-      if (bRes.ok) setBacktests(((await bRes.json()) as BacktestListResponse).items.map(normalizeBacktest));
-      if (setRes.ok) setSettings(((await setRes.json()) as BacktestSettingListResponse).items);
-      if (cRes.ok) setCommunityItems(((await cRes.json()) as CommunityListResponse).items);
-    } finally {
-      setIsLoading(false);
+  const fetchStrategies = useCallback(async () => {
+    const res = await fetch(`${API_BASE_URL}/strategies`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data: StrategyListResponse = await res.json();
+      setStrategies(data.items);
     }
-  }, [apiFetch, normalizeBacktest]);
+  }, [token]);
 
   useEffect(() => {
-    if (tokens) loadData();
-  }, [tokens, loadData]);
+    fetchStrategies();
+  }, [fetchStrategies]);
 
-  const handleLogin = async (e: string, p: string) => {
-    const body = new URLSearchParams();
-    body.set("username", e);
-    body.set("password", p);
-    const res = await fetch(`${API_BASE_URL}/auth/login`, { method: "POST", body });
-    if (!res.ok) throw new Error("Login Failed");
-    const data = await res.json();
-    setTokens({ accessToken: data.access_token, refreshToken: data.refresh_token });
-  };
+  const handleExpand = async (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+    setSelectedBacktestIds(new Set());
 
-  const handleRunBacktest = async (params: any) => {
-    const res = await apiFetch("/backtests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        strategy_id: params.strategyId,
-        setting_id: params.settingId,
-        ml_model_id: params.mlModelId,
-      }),
+    const res = await fetch(`${API_BASE_URL}/backtests?limit=100`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error("Run Failed");
-    const data = await res.json();
-    const normalized = normalizeBacktest(data);
-    setBacktests((prev) => [normalized, ...prev]);
-    return normalized;
+    if (res.ok) {
+      const data: BacktestListResponse = await res.json();
+      setBacktests(data.items.filter(b => b.strategy_id === id));
+    }
   };
 
-  const handleSaveStrategy = async (params: any) => {
-    const method = params.id ? "PUT" : "POST";
-    const path = params.id ? `/strategies/${params.id}` : "/strategies";
-    const res = await apiFetch(path, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) throw new Error("Save Failed");
-    const saved = await res.json();
-    setStrategies((prev) => (params.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]));
-    return saved;
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedBacktestIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedBacktestIds(newSet);
   };
 
-  const handleSaveSetting = async (params: any) => {
-    const res = await apiFetch("/backtest-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) throw new Error("Save Setting Failed");
-    const saved = await res.json();
-    setSettings((prev) => [saved, ...prev]);
-    return saved;
-  };
+  const comparisonData = useMemo(() => {
+    const selected = backtests.filter(b => selectedBacktestIds.has(b.id));
+    if (selected.length === 0) return undefined;
 
-  if (!tokens) return <AuthForm onLogin={handleLogin} onRegister={async () => {}} error={null} loading={false} />;
+    return selected.map(b => ({
+      label: `${b.setting_name || '설정'} (${b.start_date})`,
+      data: b.equity_curve
+    }));
+  }, [backtests, selectedBacktestIds]);
 
   return (
-    <div className="app-shell">
-      <header className="top-header">
-        <div className="top-header__inner">
-          <div className="brand">QuantiMizer</div>
-          <nav className="nav-tabs">
-            {navTabs.map((t) => (
-              <button key={t.id} className={`nav-tab ${page === t.id ? "nav-tab--active" : ""}`} onClick={() => setPage(t.id)}>
-                <span className="nav-tab__icon">{t.icon}</span>
-                {t.label}
-              </button>
-            ))}
-          </nav>
-          <button className="logout-button" onClick={() => setTokens(null)}>
-            로그아웃
-          </button>
-        </div>
-      </header>
-      <main className="main-content">
-        {isLoading && <div className="alert alert--info">Loading...</div>}
-        {page === "dashboard" && (
-          <Dashboard strategies={strategies} backtests={backtests} onOpenBacktest={setSelectedBacktest} onNavigate={setPage} />
-        )}
-        {page === "builder" && (
-          <StrategyBuilder
-            strategies={strategies}
-            settings={settings}
-            onRunBacktest={handleRunBacktest}
-            onSaveStrategy={handleSaveStrategy}
-            onSaveSetting={handleSaveSetting}
-          />
-        )}
-        {page === "backtests" && <BacktestsPage backtests={backtests} strategies={strategies} onSelect={setSelectedBacktest} />}
-        {page === "strategies" && (
-          <MyStrategies
-            strategies={strategies}
-            backtests={backtests}
-            settings={settings}
-            onRename={async () => {}}
-            onClone={async () => {}}
-            onDelete={async () => {}}
-          />
-        )}
-      </main>
-      <Modal open={!!selectedBacktest} onClose={() => setSelectedBacktest(null)} title="백테스트 상세">
-        {selectedBacktest && <PerformanceReport result={selectedBacktest} />}
-      </Modal>
+    <div className="page-container">
+      <div className="page-header">
+        <h2>내 전략</h2>
+        <Btn onClick={() => onEdit(NEW_STRATEGY_ID)}>+ 새 전략 만들기</Btn>
+      </div>
+      <div className="strategy-list">
+        {strategies.map(s => (
+          <Card key={s.id} className="strategy-card">
+            <div className="strategy-header">
+              <div onClick={() => handleExpand(s.id)} style={{ cursor: "pointer", fontWeight: "bold", fontSize: "1.1rem" }}>
+                {s.name}
+              </div>
+              <div>
+                <Btn variant="ghost" onClick={() => onEdit(s.id)}>{ICONS.edit}</Btn>
+              </div>
+            </div>
+            {expandedId === s.id && (
+              <div className="strategy-details">
+                <h4 style={{ marginTop: "16px", marginBottom: "8px" }}>백테스트 비교 (선택하여 차트 보기)</h4>
+                {comparisonData && comparisonData.length > 0 && (
+                  <EquityChart data={comparisonData[0].data} comparisonData={comparisonData.slice(1)} />
+                )}
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>선택</th>
+                      <th>조건</th>
+                      <th>기간</th>
+                      <th>CAGR</th>
+                      <th>MDD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {backtests.map(b => (
+                      <tr key={b.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedBacktestIds.has(b.id)}
+                            onChange={() => toggleSelection(b.id)}
+                          />
+                        </td>
+                        <td>{b.setting_name}</td>
+                        <td>{b.start_date} ~ {b.end_date}</td>
+                        <td>{formatPercent(b.metrics.cagr)}</td>
+                        <td>{formatPercent(b.metrics.max_drawdown)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
+
+const CommunityPage = ({ token }: { token: string }) => {
+  const [feed, setFeed] = useState<CommunityFeedItem[]>([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/community/feed`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data: CommunityListResponse) => setFeed(data.items));
+  }, [token]);
+
+  return (
+    <div className="page-container">
+      <h2>커뮤니티</h2>
+      <div className="feed-list">
+        {feed.map((item) => (
+          <Card key={item.id} title={item.title}>
+            <p>{item.content}</p>
+            <small>By {item.author_username}</small>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  const [tokens, setTokens] = useState<AuthTokens | null>(() => {
+    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  const [activeTab, setActiveTab] = useState<PageKey>("dashboard");
+  const [editingStrategyId, setEditingStrategyId] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleLogin = async (email: string, pass: string) => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const params = new URLSearchParams();
+      params.append("username", email);
+      params.append("password", pass);
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params,
+      });
+      if (!res.ok) throw new Error("로그인 실패");
+      const data = await res.json();
+      const newTokens = { accessToken: data.access_token, refreshToken: data.refresh_token || "" };
+      setTokens(newTokens);
+      localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(newTokens));
+    } catch (e) {
+      setAuthError("이메일 또는 비밀번호가 올바르지 않습니다.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleRegister = async (email: string, username: string, pass: string) => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, username, password: pass }),
+      });
+      if (!res.ok) throw new Error("회원가입 실패");
+      alert("회원가입 성공! 로그인해주세요.");
+    } catch (e) {
+      setAuthError("회원가입 중 오류가 발생했습니다.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setTokens(null);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  };
+
+  const handleEditStrategy = (id: string) => {
+    setEditingStrategyId(id);
+    setActiveTab("builder");
+  };
+
+  const handleSaveStrategy = () => {
+    setEditingStrategyId(null);
+    setActiveTab("strategies");
+  };
+
+  if (!tokens) {
+    return <AuthForm onLogin={handleLogin} onRegister={handleRegister} loading={authLoading} error={authError} />;
+  }
+
+  return (
+    <div className="app-layout">
+      <nav className="sidebar">
+        <div className="brand">Quantimizer</div>
+        <div className="nav-links">
+          {navTabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`nav-item ${activeTab === tab.id ? "active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="nav-icon">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="user-profile">
+          <Btn variant="ghost" onClick={handleLogout}>
+            {ICONS.logout} 로그아웃
+          </Btn>
+        </div>
+      </nav>
+
+      <main className="main-content">
+        {activeTab === "dashboard" && (
+          <Dashboard token={tokens.accessToken} onNavigate={setActiveTab} />
+        )}
+
+        {activeTab === "builder" && (
+          <StrategyBuilder
+            token={tokens.accessToken}
+            strategyId={editingStrategyId || NEW_STRATEGY_ID}
+            onSave={handleSaveStrategy}
+          />
+        )}
+
+        {activeTab === "settings" && (
+          <BacktestSettingsPage token={tokens.accessToken} />
+        )}
+
+        {activeTab === "backtests" && (
+          <BacktestsPage token={tokens.accessToken} />
+        )}
+
+        {activeTab === "strategies" && (
+          <MyStrategies token={tokens.accessToken} onEdit={handleEditStrategy} />
+        )}
+
+        {activeTab === "community" && (
+          <CommunityPage token={tokens.accessToken} />
+        )}
+      </main>
+    </div>
+  );
+}
 
 export default App;
