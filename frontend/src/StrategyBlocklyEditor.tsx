@@ -3,7 +3,6 @@ import * as Blockly from 'blockly'
 import 'blockly/blocks'
 import 'blockly/msg/ko'
 
-export type MarketCode = 'KOSPI' | 'KOSDAQ' | 'ALL'
 export type FactorName =
   | 'PER'
   | 'PBR'
@@ -30,12 +29,6 @@ export type FactorDirection = 'asc' | 'desc'
 export type PortfolioWeighting = 'equal' | 'market_cap'
 export type RebalancingFrequency = 'monthly' | 'quarterly'
 
-export interface UniverseConfig {
-  market: MarketCode
-  min_market_cap: number
-  exclude: string[]
-}
-
 export interface FactorConfig {
   name: FactorName
   direction: FactorDirection
@@ -53,18 +46,12 @@ export interface RebalancingConfig {
 }
 
 export interface StrategyConfig {
-  universe: UniverseConfig
   factors: FactorConfig[]
   portfolio: PortfolioConfig
   rebalancing: RebalancingConfig
 }
 
 export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
-  universe: {
-    market: 'ALL',
-    min_market_cap: 0,
-    exclude: [],
-  },
   factors: [],
   portfolio: {
     top_n: 20,
@@ -78,9 +65,7 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
 type FactorBlock = any
 type ToolboxDefinition = any
 
-// 드롭다운 메뉴에 표시될 전체 옵션 목록
 const FACTOR_OPTIONS: Array<[string, FactorName]> = [
-  // 시장/기술적 지표
   ['일간 수익률 (PctChange)', 'PctChange'],
   ['RSI 14일', 'RSI_14'],
   ['20일 이동평균 (MA_20D)', 'MA_20D'],
@@ -88,31 +73,19 @@ const FACTOR_OPTIONS: Array<[string, FactorName]> = [
   ['모멘텀 12M', 'Momentum_12M'],
   ['변동성 20D (Volatility_20D)', 'Volatility_20D'],
   ['시가총액 (MarketCap)', 'MarketCap'],
-  
-  // 가치 지표
   ['PER (주가수익비율)', 'PER'],
   ['PBR (주가순자산비율)', 'PBR'],
   ['EPS (주당순이익)', 'EPS'],
   ['BPS (주당순자산)', 'BPS'],
   ['배당수익률 (DividendYield)', 'DividendYield'],
-  
-  // 수익성 지표
   ['ROE (자기자본이익률)', 'ROE'],
   ['ROA (총자산이익률)', 'ROA'],
   ['영업이익률 (OPM)', 'OPM'],
   ['매출총이익률 (GPM)', 'GPM'],
-  
-  // 안정성/활동성 지표
   ['부채비율 (Debt/Equity)', 'DebtToEquity'],
   ['유동비율 (Current Ratio)', 'CurrentRatio'],
   ['이자보상배율 (Interest Coverage)', 'InterestCoverage'],
   ['자산회전율 (Asset Turnover)', 'AssetTurnover'],
-]
-
-const MARKET_OPTIONS: Array<[string, MarketCode]> = [
-  ['KOSPI', 'KOSPI'],
-  ['KOSDAQ', 'KOSDAQ'],
-  ['전체 (KOSPI + KOSDAQ)', 'ALL'],
 ]
 
 const DIRECTION_OPTIONS: Array<[string, FactorDirection]> = [
@@ -130,14 +103,13 @@ const REBALANCING_OPTIONS: Array<[string, RebalancingFrequency]> = [
   ['분기말', 'quarterly'],
 ]
 
-// [변경] 카테고리를 세분화하고 색상 및 화살표 텍스트 추가
 const TOOLBOX: ToolboxDefinition = {
   kind: 'categoryToolbox',
   contents: [
     {
       kind: 'category',
       name: '▶ 시장 / 기술적 지표',
-      colour: '#3B82F6', // Blue
+      colour: '#3B82F6', 
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PctChange' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'RSI_14' } },
@@ -151,7 +123,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 가치 지표 (Valuation)',
-      colour: '#6366F1', // Indigo
+      colour: '#6366F1', 
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PER' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PBR' } },
@@ -163,7 +135,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 수익성 (Profitability)',
-      colour: '#10B981', // Emerald/Teal
+      colour: '#10B981', 
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROE' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROA' } },
@@ -174,7 +146,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 안정성 / 활동성',
-      colour: '#F59E0B', // Amber
+      colour: '#F59E0B', 
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'DebtToEquity' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'CurrentRatio' } },
@@ -190,7 +162,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
   const base: StrategyConfig = {
-    universe: { ...DEFAULT_STRATEGY_CONFIG.universe },
     factors: [],
     portfolio: { ...DEFAULT_STRATEGY_CONFIG.portfolio },
     rebalancing: { ...DEFAULT_STRATEGY_CONFIG.rebalancing },
@@ -201,27 +172,6 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
   }
 
   const source = isRecord(input.definition) ? (input.definition as Record<string, unknown>) : input
-
-  if (isRecord(source.universe)) {
-    const universe = source.universe
-    const market = String(universe.market ?? base.universe.market)
-    if (MARKET_OPTIONS.some(([, value]) => value === market)) {
-      base.universe.market = market as MarketCode
-    }
-    const minCap = Number(universe.min_market_cap)
-    base.universe.min_market_cap = Number.isFinite(minCap) && minCap >= 0 ? Math.floor(minCap) : base.universe.min_market_cap
-    if (Array.isArray(universe.exclude)) {
-      const set = new Set<string>()
-      for (const item of universe.exclude) {
-        if (typeof item !== 'string') continue
-        const normalized = item.trim().toLowerCase()
-        if (normalized === 'managed' || normalized === 'suspended') {
-          set.add(normalized)
-        }
-      }
-      base.universe.exclude = Array.from(set)
-    }
-  }
 
   if (Array.isArray(source.factors)) {
     const factors: FactorConfig[] = []
@@ -301,38 +251,14 @@ const initializeBlocks = () => {
     {
       type: 'strategy_root',
       message0: '투자 전략',
-      message1: 'Universe 설정 %1',
-      args1: [{ type: 'input_statement', name: 'UNIVERSE', check: 'universe_section' }],
-      message2: 'Factors 설정 %1',
-      args2: [{ type: 'input_statement', name: 'FACTORS', check: 'factors_section' }],
-      message3: '포트폴리오 구성 %1',
-      args3: [{ type: 'input_statement', name: 'PORTFOLIO', check: 'portfolio_section' }],
-      message4: '리밸런싱 %1',
-      args4: [{ type: 'input_statement', name: 'REBALANCING', check: 'rebalancing_section' }],
+      message1: 'Factors 설정 %1',
+      args1: [{ type: 'input_statement', name: 'FACTORS', check: 'factors_section' }],
+      message2: '포트폴리오 구성 %1',
+      args2: [{ type: 'input_statement', name: 'PORTFOLIO', check: 'portfolio_section' }],
+      message3: '리밸런싱 %1',
+      args3: [{ type: 'input_statement', name: 'REBALANCING', check: 'rebalancing_section' }],
       colour: 210,
       deletable: false
-    },
-    {
-      type: 'universe_settings',
-      message0: '시장 %1',
-      args0: [
-        { type: 'field_dropdown', name: 'MARKET', options: MARKET_OPTIONS }
-      ],
-      message1: '최소 시가총액 %1 억원',
-      args1: [
-        { type: 'field_number', name: 'MIN_CAP', value: 0, min: 0, precision: 1 }
-      ],
-      message2: '제외 - 관리종목 %1',
-      args2: [
-        { type: 'field_checkbox', name: 'EXCLUDE_MANAGED', checked: false }
-      ],
-      message3: '제외 - 거래정지 %1',
-      args3: [
-        { type: 'field_checkbox', name: 'EXCLUDE_SUSPENDED', checked: false }
-      ],
-      previousStatement: 'universe_section',
-      colour: 195,
-      tooltip: '투자 Universe를 정의합니다.'
     },
     {
       type: 'factors_section',
@@ -395,7 +321,6 @@ initializeBlocks()
 
 const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
   const config: StrategyConfig = {
-    universe: { ...DEFAULT_STRATEGY_CONFIG.universe },
     factors: [],
     portfolio: { ...DEFAULT_STRATEGY_CONFIG.portfolio },
     rebalancing: { ...DEFAULT_STRATEGY_CONFIG.rebalancing },
@@ -404,24 +329,6 @@ const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
   const root = workspace.getBlocksByType('strategy_root', false)[0]
   if (!root) {
     return config
-  }
-
-  const universeBlock = root.getInputTargetBlock('UNIVERSE')
-  if (universeBlock) {
-    const market = universeBlock.getFieldValue('MARKET') as MarketCode
-    if (MARKET_OPTIONS.some(([, value]) => value === market)) {
-      config.universe.market = market
-    }
-    const minCap = Number(universeBlock.getFieldValue('MIN_CAP'))
-    config.universe.min_market_cap = Number.isFinite(minCap) && minCap >= 0 ? Math.floor(minCap) : config.universe.min_market_cap
-    const exclude: string[] = []
-    if (universeBlock.getFieldValue('EXCLUDE_MANAGED') === 'TRUE') {
-      exclude.push('managed')
-    }
-    if (universeBlock.getFieldValue('EXCLUDE_SUSPENDED') === 'TRUE') {
-      exclude.push('suspended')
-    }
-    config.universe.exclude = exclude
   }
 
   const factorsSection = root.getInputTargetBlock('FACTORS')
@@ -475,15 +382,6 @@ const applyStrategyToWorkspace = (workspace: any, config: StrategyConfig) => {
     root.initSvg()
     root.render()
     root.moveBy(32, 32)
-
-    const universeBlock = workspace.newBlock('universe_settings') as any
-    universeBlock.setFieldValue(config.universe.market, 'MARKET')
-    universeBlock.setFieldValue(String(config.universe.min_market_cap ?? 0), 'MIN_CAP')
-    universeBlock.setFieldValue(config.universe.exclude.includes('managed') ? 'TRUE' : 'FALSE', 'EXCLUDE_MANAGED')
-    universeBlock.setFieldValue(config.universe.exclude.includes('suspended') ? 'TRUE' : 'FALSE', 'EXCLUDE_SUSPENDED')
-    universeBlock.initSvg()
-    universeBlock.render()
-    root.getInput('UNIVERSE')?.connection?.connect(universeBlock.previousConnection)
 
     const factorsSection = workspace.newBlock('factors_section') as any
     factorsSection.initSvg()

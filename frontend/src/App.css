@@ -1,4 +1,3 @@
-/* ---------- Design Tokens ---------- */
 :root {
   --brand-blue: #2563eb;
   --brand-blue-dark: #1d4ed8;
@@ -34,7 +33,6 @@ body {
   margin: 0;
 }
 
-/* ---------- App Shell / Header ---------- */
 .app-shell {
   min-height: 100vh;
   background: linear-gradient(180deg, #f5f6fa 0%, #edf1f9 100%);
@@ -102,11 +100,6 @@ body {
   box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
 
-.nav-tab__icon {
-  font-size: 1rem;
-}
-
-/* 변경된 로그아웃 버튼 스타일 */
 .logout-button {
   border: none;
   background: transparent;
@@ -122,7 +115,6 @@ body {
   background: transparent;
 }
 
-/* ---------- Main Layout ---------- */
 .main-content {
   flex: 1;
   width: 100%;
@@ -140,7 +132,6 @@ body {
   gap: 24px;
 }
 
-/* ---------- Card ---------- */
 .card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -193,21 +184,16 @@ body {
   margin-top: 16px;
 }
 
-/* ===============================================
-   Builder 영역
-   =============================================== */
-
 .builder-layout {
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
 
-/* 좌·우 2컬럼: Blockly / 백테스트 */
 .builder-main-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr); /* 비율 조정 */
-  gap: 12px; /* 간격 절반으로 축소 (기존 24px) */
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr); 
+  gap: 12px; 
   align-items: flex-start;
 }
 
@@ -259,14 +245,12 @@ body {
   min-height: 260px;
 }
 
-/* 전략 빌더 상단 컨트롤 */
 .builder-controls {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-/* Row Layout */
 .builder-row {
   display: grid;
   grid-template-columns: 1fr;
@@ -279,11 +263,9 @@ body {
 }
 
 @media (min-width: 1024px) {
-  /* 3 fields per row */
   .builder-row--3 {
     grid-template-columns: repeat(3, 1fr);
   }
-  /* 2 fields per row */
   .builder-row--2 {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -299,17 +281,6 @@ body {
   margin-top: 4px;
 }
 
-@media (max-width: 767px) {
-  .builder-buttons {
-    flex-direction: column;
-    width: 100%;
-  }
-  .builder-buttons .btn {
-    width: 100%;
-  }
-}
-
-/* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -363,13 +334,6 @@ body {
   background: rgba(244, 63, 94, 0.26);
 }
 
-.btn--link {
-  background: transparent;
-  color: var(--brand-blue);
-  padding: 0;
-}
-
-/* ---------- Forms / Fields ---------- */
 .field {
   display: flex;
   flex-direction: column;
@@ -403,33 +367,6 @@ body {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
 
-.switch {
-  width: 44px;
-  height: 24px;
-  border-radius: 999px;
-  border: none;
-  padding: 3px;
-  display: inline-flex;
-  align-items: center;
-  background: rgba(148, 163, 184, 0.4);
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.switch--on {
-  background: rgba(37, 99, 235, 0.75);
-}
-.switch__thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #ffffff;
-  transition: transform 0.2s ease;
-}
-.switch--on .switch__thumb {
-  transform: translateX(20px);
-}
-
-/* ---------- KPI ---------- */
 .kpi-grid {
   display: grid;
   gap: 18px;
@@ -472,7 +409,6 @@ body {
   color: var(--text-secondary);
 }
 
-/* ---------- Table ---------- */
 .table-wrapper {
   overflow-x: auto;
 }
@@ -496,17 +432,7 @@ body {
   font-family: "Fira Mono", "Menlo", monospace;
   font-size: 0.88rem;
 }
-.table .bold {
-  font-weight: 600;
-}
-.table-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-}
 
-/* ---------- Pagination ---------- */
 .pagination {
   display: flex;
   align-items: center;
@@ -540,45 +466,6 @@ body {
   cursor: not-allowed;
 }
 
-.pagination__btn--active {
-  background: var(--brand-blue);
-  color: #fff;
-  border-color: var(--brand-blue);
-}
-
-.pagination__btn--active:hover:not(:disabled) {
-  background: var(--brand-blue-dark);
-}
-
-.pagination__info {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  margin: 0 4px;
-}
-
-/* ---------- JSON Preview ---------- */
-.builder-json {
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: #f9fafb;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-  max-height: 240px;
-  overflow: auto;
-  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.4);
-  font-family: "JetBrains Mono", "Fira Mono", monospace;
-  font-size: 0.85rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.builder-json__header {
-  font-weight: 600;
-  color: var(--brand-blue);
-  margin-bottom: 8px;
-}
-.builder-json__code {
-  line-height: 1.45;
-}
 .modal-json {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.85rem;
@@ -590,7 +477,6 @@ body {
   overflow: auto;
 }
 
-/* ---------- Alerts ---------- */
 .alert {
   padding: 10px 14px;
   border-radius: 8px;
@@ -616,7 +502,6 @@ body {
   color: #15803d;
 }
 
-/* ---------- Placeholder ---------- */
 .placeholder {
   border-radius: var(--radius-lg);
   border: 1px solid rgba(226, 232, 240, 0.8);
@@ -634,12 +519,7 @@ body {
 .placeholder__icon {
   font-size: 2rem;
 }
-.placeholder__text {
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
 
-/* ---------- Performance / Charts ---------- */
 .performance {
   display: flex;
   flex-direction: column;
@@ -663,7 +543,6 @@ body {
   display: block;
   overflow: visible;
 }
-/* 차트 내부 텍스트 스타일 */
 .chart-text {
   font-size: 11px;
   fill: var(--text-secondary);
@@ -674,21 +553,19 @@ body {
 }
 .chart-text--y-left {
   text-anchor: end;
-  fill: #22c55e; /* Equity 색상과 깔맞춤 */
+  fill: #22c55e;
 }
 .chart-text--y-right {
   text-anchor: start;
-  fill: #e11d48; /* Drawdown 색상과 깔맞춤 */
+  fill: #e11d48;
 }
 
-/* 그리드 라인 */
 .chart-grid {
   stroke: #e5e7eb;
   stroke-width: 1;
   stroke-dasharray: 4 4;
 }
 
-/* 축 선 */
 .chart-axis-line {
   stroke: #9ca3af;
   stroke-width: 1;
@@ -701,25 +578,6 @@ body {
   color: var(--text-secondary);
   margin-top: 4px;
   gap: 16px;
-}
-.equity-chart__value {
-  font-weight: 600;
-}
-.equity-chart__axes {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-.equity-chart__axis-label {
-  white-space: nowrap;
-}
-
-.performance__description {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.5;
 }
 
 .performance__stats {
@@ -744,7 +602,6 @@ body {
   font-size: 1rem;
 }
 
-/* SimpleLineChart styles */
 .line-chart {
   width: 100%;
 }
@@ -782,7 +639,6 @@ body {
   color: var(--text-muted);
 }
 
-/* ---------- Modal ---------- */
 .modal {
   position: fixed;
   inset: 0;
@@ -830,7 +686,6 @@ body {
   padding: 18px;
 }
 
-/* ---------- Strategies Grid & Tags ---------- */
 .strategy-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -851,7 +706,6 @@ body {
   border-radius: 999px;
 }
 
-/* 내 전략 페이지 상단 툴바 */
 .strategy-list__toolbar {
   display: flex;
   justify-content: flex-end;
@@ -865,7 +719,6 @@ body {
   color: var(--text-muted);
 }
 
-/* 카드 우측 상단 비교 체크 */
 .strategy-card__header {
   display: flex;
   flex-direction: column;
@@ -888,7 +741,6 @@ body {
   margin-top: 16px;
 }
 
-/* 비교 모달 레이아웃 */
 .compare-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -907,7 +759,6 @@ body {
   color: var(--text-primary);
 }
 
-/* ---------- Auth (Login/Register) ---------- */
 .auth-card {
   width: min(420px, 92vw);
   margin: 8vh auto;
@@ -947,7 +798,6 @@ body {
   margin-top: 2px;
 }
 
-/* ---------- Community Page ---------- */
 .community-header {
   display: flex;
   align-items: center;
@@ -1077,14 +927,85 @@ body {
   margin-top: 12px;
 }
 
-/* ---------- Settings Fields ---------- */
-.settings-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.carousel {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
 }
-.settings-switch {
+
+.carousel__controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 5;
+}
+
+.carousel__btn {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.carousel__btn:hover {
+  background: #fff;
+  transform: scale(1.1);
+}
+
+.carousel__inner {
+  display: flex;
+  transition: transform 0.5s ease-in-out;
+}
+
+.carousel__slide {
+  min-width: 100%;
+  box-sizing: border-box;
+  padding: 0 4px;
+}
+
+.carousel__metrics {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 4;
+}
+
+.carousel__metric-row {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.carousel__metric-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.setting-form {
+  display: grid;
+  gap: 16px;
+  background: #fff;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.setting-form__header {
+  font-weight: 600;
+  margin-bottom: 8px;
 }
