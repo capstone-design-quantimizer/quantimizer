@@ -48,7 +48,8 @@ def list_strategies(
     limit: int = 20,
 ):
     query = db.query(Strategy).filter(Strategy.owner_id == current_user.id).order_by(Strategy.created_at.desc())
-    return paginate(query, skip, limit)
+    total, items = paginate(query, skip, limit)
+    return {"total": total, "items": items}
 
 
 @router.get("/{strategy_id}", response_model=StrategyRead)

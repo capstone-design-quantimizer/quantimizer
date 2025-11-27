@@ -6,7 +6,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
@@ -204,8 +204,9 @@ def _build_scored_sql(universe: UniverseSpec, strategy: StrategySpec, start: dat
     if universe.min_market_cap is not None:
         where.append("COALESCE(s.market_cap, 0) >= :min_market_cap")
         params["min_market_cap"] = universe.min_market_cap
-    if universe.excludes:
-        pass 
+    
+    # Handle excludes if needed
+    # if universe.excludes: ...
 
     where_sql = " AND ".join(where)
 
@@ -374,7 +375,8 @@ def _prepare_price_matrix(frame: pd.DataFrame) -> pd.DataFrame:
     pivot = (
         frame.pivot_table(index="event_date", columns="ticker", values="close_price", aggfunc="last")
         .sort_index()
-        .fillna(method="ffill")
+        # FIX: method='ffill' is deprecated in pandas 2.0+
+        .ffill()
     )
     pivot = pivot.dropna(how="all")
     if pivot.empty:
