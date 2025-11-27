@@ -7,8 +7,6 @@ import StrategyBlocklyEditor, {
   normalizeStrategyConfig
 } from "./StrategyBlocklyEditor";
 
-// -------------------- Types --------------------
-
 interface BacktestSetting {
   id: string;
   name: string;
@@ -63,8 +61,6 @@ interface CommunityPost {
   latest_metrics?: { return: number; mdd: number; cagr: number };
 }
 
-// -------------------- Constants --------------------
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const TOKEN_KEY = "quant.token";
 const NEW_STRAT_ID = "__new__";
@@ -72,8 +68,6 @@ const NEW_STRAT_ID = "__new__";
 const formatDate = (s: string) => new Date(s).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' });
 const formatPct = (n: number) => n ? `${(n * 100).toFixed(2)}%` : "0.00%";
 const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "compact", maximumFractionDigits: 1 }).format(n);
-
-// -------------------- Components --------------------
 
 const EquityChart = ({
   data,
@@ -96,7 +90,6 @@ const EquityChart = ({
   const maxVal = Math.max(...allValues) * 1.02;
   const range = maxVal - minVal || 1;
 
-  // MDD Calculation
   let peak = -Infinity;
   const mddSeries = data.map(d => {
     if (d.equity > peak) peak = d.equity;
@@ -199,25 +192,20 @@ const Pagination = ({ current, total, limit, onChange }: { current: number, tota
   );
 };
 
-// -------------------- Main App --------------------
-
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
   const [username, setUsername] = useState<string>("");
   const [page, setPage] = useState("dashboard");
   const [loading, setLoading] = useState(false);
 
-  // Data
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [settings, setSettings] = useState<BacktestSetting[]>([]);
   const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
 
-  // Dashboard Control
   const [slideIndex, setSlideIndex] = useState(0);
   const [dashboardFilter, setDashboardFilter] = useState<'return' | 'latest'>('return');
 
-  // Builder State
   const [bStratId, setBStratId] = useState(NEW_STRAT_ID);
   const [bName, setBName] = useState("");
   const [bDesc, setBDesc] = useState("");
@@ -225,23 +213,19 @@ export default function App() {
   const [bSettingId, setBSettingId] = useState("");
   const [bResult, setBResult] = useState<Backtest | null>(null);
 
-  // Pagination State
   const [stratPage, setStratPage] = useState(1);
   const [btPage, setBtPage] = useState(1);
   const [stPage, setStPage] = useState(1);
 
-  // Filtering
   const [btFilter, setBtFilter] = useState("ALL");
 
-  // Strategy Comparison State (New)
   const [compareStratIds, setCompareStratIds] = useState<string[]>([]);
   const [isStrategyCompareModalOpen, setIsStrategyCompareModalOpen] = useState(false);
   const [strategyCompareSettingId, setStrategyCompareSettingId] = useState<string>("");
 
-  // Modals & Forms
   const [detailStrat, setDetailStrat] = useState<Strategy | null>(null);
   const [selectedDetailBts, setSelectedDetailBts] = useState<string[]>([]);
-  const [compareModal, setCompareModal] = useState<any>(null); // Existing (Backtest vs Backtest)
+  const [compareModal, setCompareModal] = useState<any>(null);
   const [resultModal, setResultModal] = useState<Backtest | null>(null);
   const [settingModal, setSettingModal] = useState(false);
   const [writeModal, setWriteModal] = useState(false);
@@ -251,12 +235,9 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', username: '' });
 
-  // -------------------- Effects --------------------
-
   useEffect(() => {
     if (token) {
       try {
-        // Simple JWT decode to get username
         const payload = JSON.parse(atob(token.split('.')[1]));
         setUsername(payload.sub || payload.username || "");
       } catch (e) {
@@ -266,8 +247,6 @@ export default function App() {
       setUsername("");
     }
   }, [token]);
-
-  // -------------------- API --------------------
 
   const api = useCallback(async (url: string, opts: any = {}) => {
     const headers = { ...opts.headers, Authorization: `Bearer ${token}` };
@@ -304,8 +283,6 @@ export default function App() {
   }, [token, api, bSettingId]);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  // -------------------- Handlers --------------------
 
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -417,8 +394,6 @@ export default function App() {
     }
   };
 
-  // -------------------- Computed --------------------
-
   const maxReturnBacktest = useMemo(() => {
     if (backtests.length === 0) return null;
     return backtests.reduce((max, curr) => curr.metrics.total_return > max.metrics.total_return ? curr : max, backtests[0]);
@@ -445,7 +420,6 @@ export default function App() {
     const s1 = strategies.find(s => s.id === compareStratIds[0]);
     const s2 = strategies.find(s => s.id === compareStratIds[1]);
 
-    // Find latest backtest for each strategy with the selected setting
     const bt1 = backtests
       .filter(b => b.strategy_id === compareStratIds[0] && b.setting_id === strategyCompareSettingId)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
@@ -464,8 +438,6 @@ export default function App() {
       return (prev - 1 + dashboardCards.length) % dashboardCards.length;
     });
   };
-
-  // -------------------- Render --------------------
 
   if (!token) return (
     <div className="auth-container">
@@ -589,7 +561,6 @@ export default function App() {
         {page === 'builder' && (
           <div className="builder-container">
             <div className="builder-top-controls card">
-              {/* Row 1: Strategy Selection */}
               <div className="control-group">
                 <div className="control-item" style={{ flex: 1 }}>
                   <label>전략 선택</label>
@@ -600,7 +571,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Row 2: Strategy Name & Save */}
               <div className="control-group">
                 <div className="control-item" style={{ flex: 1 }}>
                   <label>전략 이름</label>
@@ -614,7 +584,6 @@ export default function App() {
 
               <div className="control-divider" />
 
-              {/* Row 3: Backtest Settings & Run */}
               <div className="control-group">
                 <div className="control-item" style={{ flex: 2 }}>
                   <label>백테스트 설정</label>
@@ -744,7 +713,6 @@ export default function App() {
             </div>
             <Pagination current={stratPage} total={strategies.length} limit={6} onChange={setStratPage} />
 
-            {/* Compare Floating Bar */}
             {compareStratIds.length === 2 && (
               <div className="compare-floating-bar">
                 <div className="compare-info">
@@ -802,8 +770,16 @@ export default function App() {
             </div>
             <div className="strategy-grid">
               {posts.map(p => {
-                const metrics = p.latest_metrics || { return: 0, mdd: 0, cagr: 0 };
-                const stratName = p.strategy_name || "Unknown Strategy";
+                const linkedStrat = strategies.find(s => s.id === p.strategy_id);
+                const stratName = linkedStrat ? linkedStrat.name : (p.strategy_name || "Unknown Strategy");
+
+                const linkedBt = backtests
+                  .filter(b => b.strategy_id === p.strategy_id)
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+                const metrics = linkedBt
+                  ? { return: linkedBt.metrics.total_return, mdd: linkedBt.metrics.max_drawdown, cagr: linkedBt.metrics.cagr }
+                  : (p.latest_metrics || { return: 0, mdd: 0, cagr: 0 });
 
                 return (
                   <div key={p.id} className="card">
@@ -846,9 +822,6 @@ export default function App() {
         )}
       </main>
 
-      {/* -------------------- Modals -------------------- */}
-
-      {/* Strategy Comparison Modal (New) */}
       {isStrategyCompareModalOpen && (
         <Modal title="전략 성과 비교 분석" onClose={() => setIsStrategyCompareModalOpen(false)}>
           <div className="comparison-layout">
