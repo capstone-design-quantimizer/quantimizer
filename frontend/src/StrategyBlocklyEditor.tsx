@@ -3,7 +3,28 @@ import * as Blockly from 'blockly'
 import 'blockly/blocks'
 import 'blockly/msg/ko'
 
-export type FactorName = 'PER' | 'PBR' | 'EPS' | 'BPS' | 'DividendYield' | 'RSI_14' | 'MA_20D' | 'Momentum_3M' | 'Momentum_12M' | 'Volatility_20D' | 'MarketCap' | 'PctChange' | 'ROE' | 'ROA' | 'OPM' | 'GPM' | 'DebtToEquity' | 'CurrentRatio' | 'AssetTurnover' | 'InterestCoverage'
+export type FactorName =
+  | 'PER'
+  | 'PBR'
+  | 'EPS'
+  | 'BPS'
+  | 'DividendYield'
+  | 'RSI_14'
+  | 'MA_20D'
+  | 'Momentum_3M'
+  | 'Momentum_12M'
+  | 'Volatility_20D'
+  | 'MarketCap'
+  | 'PctChange'
+  | 'ROE'
+  | 'ROA'
+  | 'OPM'
+  | 'GPM'
+  | 'DebtToEquity'
+  | 'CurrentRatio'
+  | 'AssetTurnover'
+  | 'InterestCoverage'
+
 export type FactorDirection = 'asc' | 'desc'
 export type PortfolioWeighting = 'equal' | 'market_cap'
 export type RebalancingFrequency = 'monthly' | 'quarterly'
@@ -32,121 +53,521 @@ export interface StrategyConfig {
 
 export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
   factors: [],
-  portfolio: { top_n: 20, weight_method: 'equal' },
-  rebalancing: { frequency: 'monthly' },
+  portfolio: {
+    top_n: 20,
+    weight_method: 'equal',
+  },
+  rebalancing: {
+    frequency: 'monthly',
+  },
 }
+
+type FactorBlock = any
+type ToolboxDefinition = any
 
 const FACTOR_OPTIONS: Array<[string, FactorName]> = [
-  ['일간 수익률', 'PctChange'], ['RSI 14일', 'RSI_14'], ['20일 이평', 'MA_20D'], ['모멘텀 3M', 'Momentum_3M'],
-  ['PER', 'PER'], ['PBR', 'PBR'], ['ROE', 'ROE'], ['부채비율', 'DebtToEquity'], ['시가총액', 'MarketCap']
+  ['일간 수익률 (PctChange)', 'PctChange'],
+  ['RSI 14일', 'RSI_14'],
+  ['20일 이동평균 (MA_20D)', 'MA_20D'],
+  ['모멘텀 3M', 'Momentum_3M'],
+  ['모멘텀 12M', 'Momentum_12M'],
+  ['변동성 20D (Volatility_20D)', 'Volatility_20D'],
+  ['시가총액 (MarketCap)', 'MarketCap'],
+  ['PER (주가수익비율)', 'PER'],
+  ['PBR (주가순자산비율)', 'PBR'],
+  ['EPS (주당순이익)', 'EPS'],
+  ['BPS (주당순자산)', 'BPS'],
+  ['배당수익률 (DividendYield)', 'DividendYield'],
+  ['ROE (자기자본이익률)', 'ROE'],
+  ['ROA (총자산이익률)', 'ROA'],
+  ['영업이익률 (OPM)', 'OPM'],
+  ['매출총이익률 (GPM)', 'GPM'],
+  ['부채비율 (Debt/Equity)', 'DebtToEquity'],
+  ['유동비율 (Current Ratio)', 'CurrentRatio'],
+  ['이자보상배율 (Interest Coverage)', 'InterestCoverage'],
+  ['자산회전율 (Asset Turnover)', 'AssetTurnover'],
 ]
-const DIRECTION_OPTIONS: Array<[string, FactorDirection]> = [['오름차순', 'asc'], ['내림차순', 'desc']]
-const WEIGHTING_OPTIONS: Array<[string, PortfolioWeighting]> = [['동일가중', 'equal'], ['시가총액가중', 'market_cap']]
-const REBALANCING_OPTIONS: Array<[string, RebalancingFrequency]> = [['월말', 'monthly'], ['분기말', 'quarterly']]
 
-const TOOLBOX = {
+const DIRECTION_OPTIONS: Array<[string, FactorDirection]> = [
+  ['오름차순 (낮을수록 좋음)', 'asc'],
+  ['내림차순 (높을수록 좋음)', 'desc'],
+]
+
+const WEIGHTING_OPTIONS: Array<[string, PortfolioWeighting]> = [
+  ['동일 가중', 'equal'],
+  ['시가총액 가중', 'market_cap'],
+]
+
+const REBALANCING_OPTIONS: Array<[string, RebalancingFrequency]> = [
+  ['월말', 'monthly'],
+  ['분기말', 'quarterly'],
+]
+
+const TOOLBOX: ToolboxDefinition = {
   kind: 'categoryToolbox',
-  contents: [{ kind: 'category', name: '팩터', colour: '#3B82F6', contents: FACTOR_OPTIONS.map(f => ({ kind: 'block', type: 'factor_item', fields: { 'FACTOR': f[1] } })) }]
+  contents: [
+    {
+      kind: 'category',
+      name: '▶ 시장 / 기술적 지표',
+      colour: '#3B82F6',
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PctChange' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'RSI_14' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'MA_20D' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'Momentum_3M' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'Momentum_12M' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'Volatility_20D' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'MarketCap' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 가치 지표 (Valuation)',
+      colour: '#6366F1',
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PER' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PBR' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'EPS' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'BPS' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'DividendYield' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 수익성 (Profitability)',
+      colour: '#10B981',
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROE' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROA' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'OPM' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'GPM' } },
+      ],
+    },
+    {
+      kind: 'category',
+      name: '▶ 안정성 / 활동성',
+      colour: '#F59E0B',
+      contents: [
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'DebtToEquity' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'CurrentRatio' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'InterestCoverage' } },
+        { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'AssetTurnover' } },
+      ],
+    },
+  ],
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
-  const base = { factors: [], portfolio: { ...DEFAULT_STRATEGY_CONFIG.portfolio }, rebalancing: { ...DEFAULT_STRATEGY_CONFIG.rebalancing } }
-  if (!isRecord(input)) return base
-  const src = isRecord(input.definition) ? (input.definition as any) : input
-  if (Array.isArray(src.factors)) {
-    base.factors = src.factors.map((r: any) => ({
-      name: r.name || r.type,
-      direction: r.direction || r.order || 'desc',
-      weight: Number(r.weight) || 0
-    }))
+  const base: StrategyConfig = {
+    factors: [],
+    portfolio: { ...DEFAULT_STRATEGY_CONFIG.portfolio },
+    rebalancing: { ...DEFAULT_STRATEGY_CONFIG.rebalancing },
   }
-  if (isRecord(src.portfolio)) {
-    base.portfolio.top_n = Number(src.portfolio.top_n) || 20
-    base.portfolio.weight_method = (src.portfolio.weight_method as PortfolioWeighting) || 'equal'
+
+  if (!isRecord(input)) {
+    return base
   }
-  if (isRecord(src.rebalancing)) base.rebalancing.frequency = (src.rebalancing.frequency as RebalancingFrequency) || 'monthly'
+
+  const source = isRecord(input.definition) ? (input.definition as Record<string, unknown>) : input
+
+  if (Array.isArray(source.factors)) {
+    const factors: FactorConfig[] = []
+    for (const raw of source.factors) {
+      if (!isRecord(raw)) continue
+      const rawName = 'name' in raw ? raw.name : raw.type
+      const name = String(rawName ?? '').trim() as FactorName
+      if (!FACTOR_OPTIONS.some(([, value]) => value === name)) continue
+      const rawDirection = 'direction' in raw ? raw.direction : raw.order
+      const direction = String(rawDirection ?? 'desc').trim() as FactorDirection
+      const validDirection = DIRECTION_OPTIONS.some(([, value]) => value === direction) ? direction : 'desc'
+      const weightValue = Number(raw.weight)
+      const weight = Number.isFinite(weightValue) ? weightValue : 0
+      factors.push({ name, direction: validDirection, weight })
+    }
+    base.factors = factors
+  }
+
+  if (isRecord(source.portfolio)) {
+    const topN = Number(source.portfolio.top_n)
+    base.portfolio.top_n = Number.isFinite(topN) && topN > 0 ? Math.floor(topN) : base.portfolio.top_n
+    const weight_method = String(source.portfolio.weight_method ?? base.portfolio.weight_method) as PortfolioWeighting
+    if (WEIGHTING_OPTIONS.some(([, value]) => value === weight_method)) {
+      base.portfolio.weight_method = weight_method
+    }
+  }
+
+  if (isRecord(source.rebalancing)) {
+    const frequency = String(source.rebalancing.frequency ?? base.rebalancing.frequency) as RebalancingFrequency
+    if (REBALANCING_OPTIONS.some(([, value]) => value === frequency)) {
+      base.rebalancing.frequency = frequency
+    }
+  }
+
   return base
 }
 
-let initialized = false
-const initBlocks = () => {
-  if (initialized) return
-  initialized = true
-  Blockly.defineBlocksWithJsonArray([
-    { type: 'strategy_root', message0: '전략 설정 %1 %2 %3', args0: [{ type: 'input_statement', name: 'FACTORS' }, { type: 'input_statement', name: 'PORTFOLIO' }, { type: 'input_statement', name: 'REBALANCING' }], colour: 210 },
-    { type: 'factors_section', message0: '팩터 목록 %1', args0: [{ type: 'input_statement', name: 'ITEMS' }], previousStatement: 'factors_section', colour: 220 },
-    { type: 'factor_item', message0: '%1 %2 (가중치: %3)', args0: [{ type: 'field_dropdown', name: 'FACTOR', options: FACTOR_OPTIONS }, { type: 'field_dropdown', name: 'DIRECTION', options: DIRECTION_OPTIONS }, { type: 'field_number', name: 'WEIGHT', value: 1 }], previousStatement: 'factor_item', nextStatement: 'factor_item', colour: 245 },
-    { type: 'portfolio_settings', message0: '포트폴리오: 상위 %1개, %2', args0: [{ type: 'field_number', name: 'TOP_N', value: 20 }, { type: 'field_dropdown', name: 'WEIGHT_METHOD', options: WEIGHTING_OPTIONS }], previousStatement: 'portfolio_section', colour: 165 },
-    { type: 'rebalancing_settings', message0: '리밸런싱: %1', args0: [{ type: 'field_dropdown', name: 'FREQUENCY', options: REBALANCING_OPTIONS }], previousStatement: 'rebalancing_section', colour: 140 }
-  ])
-}
-initBlocks()
+let blocksInitialized = false
 
-const extract = (ws: any): StrategyConfig => {
-  const conf: StrategyConfig = { factors: [], portfolio: { ...DEFAULT_STRATEGY_CONFIG.portfolio }, rebalancing: { ...DEFAULT_STRATEGY_CONFIG.rebalancing } }
-  const root = ws.getBlocksByType('strategy_root', false)[0]
-  if (!root) return conf
+const initializeBlocks = () => {
+  if (blocksInitialized) {
+    return
+  }
+  blocksInitialized = true
 
-  const facSec = root.getInputTargetBlock('FACTORS')
-  if (facSec) {
-    let curr = facSec.getInputTargetBlock('ITEMS')
-    while (curr) {
-      conf.factors.push({ name: curr.getFieldValue('FACTOR'), direction: curr.getFieldValue('DIRECTION'), weight: Number(curr.getFieldValue('WEIGHT')) })
-      curr = curr.getNextBlock()
+  Blockly.Extensions.register('factor_item_extension', function (this: FactorBlock) {
+    const self = this as FactorBlock
+
+    const updateModelVisibility = () => {
+      const input = self.getInput('MODEL')
+      if (!input) return
+      const shouldShow = self.getFieldValue('FACTOR') === 'ML_MODEL'
+      if (input.isVisible() === shouldShow) return
+      Blockly.Events.disable()
+      try {
+        input.setVisible(shouldShow)
+        if (self.rendered) self.render()
+      } finally {
+        Blockly.Events.enable()
+      }
     }
-  }
-  const port = root.getInputTargetBlock('PORTFOLIO')
-  if (port) {
-    conf.portfolio.top_n = Number(port.getFieldValue('TOP_N'))
-    conf.portfolio.weight_method = port.getFieldValue('WEIGHT_METHOD')
-  }
-  const reb = root.getInputTargetBlock('REBALANCING')
-  if (reb) conf.rebalancing.frequency = reb.getFieldValue('FREQUENCY')
-  return conf
-}
 
-const apply = (ws: any, conf: StrategyConfig) => {
-  Blockly.Events.disable()
-  ws.clear()
-  const root = ws.newBlock('strategy_root')
-  root.initSvg(); root.render(); root.moveBy(20, 20)
+    self.updateModelVisibility = updateModelVisibility
+    updateModelVisibility()
 
-  const facSec = ws.newBlock('factors_section')
-  root.getInput('FACTORS').connection.connect(facSec.previousConnection)
-  let prev: any = null
-  conf.factors.forEach(f => {
-    const b = ws.newBlock('factor_item')
-    b.setFieldValue(f.name, 'FACTOR')
-    b.setFieldValue(f.direction, 'DIRECTION')
-    b.setFieldValue(String(f.weight), 'WEIGHT')
-    if (prev) prev.nextConnection.connect(b.previousConnection)
-    else facSec.getInput('ITEMS').connection.connect(b.previousConnection)
-    prev = b
+    self.setOnChange((e: any) => {
+      if (!e) return
+      if (e.type !== Blockly.Events.BLOCK_CHANGE) return
+      if (e.blockId !== self.id) return
+      if (e.element !== 'field') return
+      if (e.name !== 'FACTOR') return
+      updateModelVisibility()
+    })
   })
 
-  const port = ws.newBlock('portfolio_settings')
-  port.setFieldValue(String(conf.portfolio.top_n), 'TOP_N')
-  port.setFieldValue(conf.portfolio.weight_method, 'WEIGHT_METHOD')
-  root.getInput('PORTFOLIO').connection.connect(port.previousConnection)
-
-  const reb = ws.newBlock('rebalancing_settings')
-  reb.setFieldValue(conf.rebalancing.frequency, 'FREQUENCY')
-  root.getInput('REBALANCING').connection.connect(reb.previousConnection)
-  Blockly.Events.enable()
+  Blockly.defineBlocksWithJsonArray([
+    {
+      type: 'strategy_root',
+      message0: '투자 전략',
+      message1: 'Factors 설정 %1',
+      args1: [{ type: 'input_statement', name: 'FACTORS', check: 'factors_section' }],
+      message2: '포트폴리오 구성 %1',
+      args2: [{ type: 'input_statement', name: 'PORTFOLIO', check: 'portfolio_section' }],
+      message3: '리밸런싱 %1',
+      args3: [{ type: 'input_statement', name: 'REBALANCING', check: 'rebalancing_section' }],
+      colour: 210,
+      deletable: false
+    },
+    {
+      type: 'factors_section',
+      message0: '팩터/지표 조합',
+      message1: '목록 %1',
+      args1: [{ type: 'input_statement', name: 'ITEMS', check: 'factor_item' }],
+      previousStatement: 'factors_section',
+      colour: 220,
+      deletable: false
+    },
+    {
+      type: 'factor_item',
+      message0: '지표 %1 방향 %2',
+      args0: [
+        { type: 'field_dropdown', name: 'FACTOR', options: FACTOR_OPTIONS },
+        { type: 'field_dropdown', name: 'DIRECTION', options: DIRECTION_OPTIONS }
+      ],
+      message1: '가중치 %1',
+      args1: [
+        { type: 'field_number', name: 'WEIGHT', value: 0.5, min: 0, max: 1, precision: 0.01 }
+      ],
+      message2: '모델 ID %1',
+      args2: [
+        { type: 'field_input', name: 'MODEL_ID', text: '' }
+      ],
+      previousStatement: 'factor_item',
+      nextStatement: 'factor_item',
+      colour: 245,
+      tooltip: '하나의 팩터 혹은 지표를 정의합니다.',
+      extensions: ['factor_item_extension']
+    },
+    {
+      type: 'portfolio_settings',
+      message0: '종목 개수 %1 개',
+      args0: [
+        { type: 'field_number', name: 'TOP_N', value: 20, min: 1, precision: 1 }
+      ],
+      message1: '가중 방식 %1',
+      args1: [
+        { type: 'field_dropdown', name: 'WEIGHT_METHOD', options: WEIGHTING_OPTIONS }
+      ],
+      previousStatement: 'portfolio_section',
+      colour: 165,
+      tooltip: '포트폴리오 구성 방식'
+    },
+    {
+      type: 'rebalancing_settings',
+      message0: '리밸런싱 주기 %1',
+      args0: [
+        { type: 'field_dropdown', name: 'FREQUENCY', options: REBALANCING_OPTIONS }
+      ],
+      previousStatement: 'rebalancing_section',
+      colour: 140,
+      tooltip: '리밸런싱 일정'
+    }
+  ])
 }
 
-export default function StrategyBlocklyEditor({ value, onChange }: { value: StrategyConfig, onChange: (v: StrategyConfig) => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const ws = useRef<any>(null)
+initializeBlocks()
+
+const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
+  const config: StrategyConfig = {
+    factors: [],
+    portfolio: { ...DEFAULT_STRATEGY_CONFIG.portfolio },
+    rebalancing: { ...DEFAULT_STRATEGY_CONFIG.rebalancing },
+  }
+
+  const root = workspace.getBlocksByType('strategy_root', false)[0]
+  if (!root) {
+    return config
+  }
+
+  const factorsSection = root.getInputTargetBlock('FACTORS')
+  if (factorsSection) {
+    const items: FactorConfig[] = []
+    let current = factorsSection.getInputTargetBlock('ITEMS')
+    while (current) {
+      const name = current.getFieldValue('FACTOR') as FactorName
+      if (FACTOR_OPTIONS.some(([, value]) => value === name)) {
+        const direction = current.getFieldValue('DIRECTION') as FactorDirection
+        const weight = Number(current.getFieldValue('WEIGHT'))
+        const normalizedWeight = Number.isFinite(weight) ? weight : 0
+        const factor: FactorConfig = {
+          name,
+          direction: DIRECTION_OPTIONS.some(([, value]) => value === direction) ? direction : 'desc',
+          weight: normalizedWeight,
+        }
+        items.push(factor)
+      }
+      current = current.getNextBlock()
+    }
+    config.factors = items
+  }
+
+  const portfolioBlock = root.getInputTargetBlock('PORTFOLIO')
+  if (portfolioBlock) {
+    const topN = Number(portfolioBlock.getFieldValue('TOP_N'))
+    config.portfolio.top_n = Number.isFinite(topN) && topN > 0 ? Math.floor(topN) : config.portfolio.top_n
+    const weight_method = portfolioBlock.getFieldValue('WEIGHT_METHOD') as PortfolioWeighting
+    if (WEIGHTING_OPTIONS.some(([, value]) => value === weight_method)) {
+      config.portfolio.weight_method = weight_method
+    }
+  }
+
+  const rebalancingBlock = root.getInputTargetBlock('REBALANCING')
+  if (rebalancingBlock) {
+    const frequency = rebalancingBlock.getFieldValue('FREQUENCY') as RebalancingFrequency
+    if (REBALANCING_OPTIONS.some(([, value]) => value === frequency)) {
+      config.rebalancing.frequency = frequency
+    }
+  }
+
+  return config
+}
+
+const applyStrategyToWorkspace = (workspace: any, config: StrategyConfig) => {
+  Blockly.Events.disable()
+  try {
+    workspace.clear()
+    const root = workspace.newBlock('strategy_root') as any
+    root.initSvg()
+    root.render()
+    root.moveBy(32, 32)
+
+    const factorsSection = workspace.newBlock('factors_section') as any
+    factorsSection.initSvg()
+    factorsSection.render()
+    root.getInput('FACTORS')?.connection?.connect(factorsSection.previousConnection)
+
+    let previousFactor: any | null = null
+    for (const factor of config.factors) {
+      const factorBlock = workspace.newBlock('factor_item') as FactorBlock
+      factorBlock.setFieldValue(factor.name, 'FACTOR')
+      factorBlock.setFieldValue(factor.direction, 'DIRECTION')
+      factorBlock.setFieldValue(String(factor.weight ?? 0), 'WEIGHT')
+      factorBlock.initSvg()
+      factorBlock.render()
+      factorBlock.updateModelVisibility?.()
+      if (previousFactor) {
+        previousFactor.nextConnection?.connect(factorBlock.previousConnection)
+      } else {
+        factorsSection.getInput('ITEMS')?.connection?.connect(factorBlock.previousConnection)
+      }
+      previousFactor = factorBlock
+    }
+
+    const portfolioBlock = workspace.newBlock('portfolio_settings') as any
+    portfolioBlock.setFieldValue(String(config.portfolio.top_n ?? 20), 'TOP_N')
+    portfolioBlock.setFieldValue(config.portfolio.weight_method, 'WEIGHT_METHOD')
+    portfolioBlock.initSvg()
+    portfolioBlock.render()
+    root.getInput('PORTFOLIO')?.connection?.connect(portfolioBlock.previousConnection)
+
+    const rebalancingBlock = workspace.newBlock('rebalancing_settings') as any
+    rebalancingBlock.setFieldValue(config.rebalancing.frequency, 'FREQUENCY')
+    rebalancingBlock.initSvg()
+    rebalancingBlock.render()
+    root.getInput('REBALANCING')?.connection?.connect(rebalancingBlock.previousConnection)
+
+    workspace.centerOnBlock(root.id)
+  } finally {
+    Blockly.Events.enable()
+  }
+  Blockly.svgResize(workspace)
+}
+
+export interface StrategyWorkspaceAPI {
+  addFactorBlock: (options: {
+    name: FactorName
+    direction?: FactorDirection
+    weight?: number
+    model_id?: string
+  }) => void
+}
+
+export const StrategyBlocklyEditor = ({
+  value,
+  onChange,
+  onWorkspaceReady,
+}: {
+  value: StrategyConfig
+  onChange: (value: StrategyConfig) => void
+  onWorkspaceReady?: (api: StrategyWorkspaceAPI | null) => void
+}) => {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const workspaceRef = useRef<any | null>(null)
+  const lastSerializedRef = useRef<string>('')
+
   useEffect(() => {
-    if (!ref.current) return
-    ws.current = Blockly.inject(ref.current, { toolbox: TOOLBOX, scrollbars: true, zoom: { controls: true, wheel: true } })
-    ws.current.addChangeListener(() => onChange(extract(ws.current)))
-    apply(ws.current, value)
-    return () => ws.current.dispose()
-  }, [])
-  useEffect(() => { if (ws.current && JSON.stringify(extract(ws.current)) !== JSON.stringify(value)) apply(ws.current, value) }, [value])
-  return <div ref={ref} className="blockly__workspace" />
+    const element = containerRef.current
+    if (!element) return
+
+    const workspace = Blockly.inject(element, {
+      toolbox: TOOLBOX,
+      trashcan: true,
+      renderer: 'zelos',
+      theme: Blockly.Theme.defineTheme('strategyTheme', {
+        base: Blockly.Themes.Classic,
+        name: 'strategyTheme',
+      }),
+      grid: {
+        spacing: 24,
+        length: 3,
+        colour: '#e2e8f0',
+        snap: true,
+      },
+      zoom: {
+        controls: true,
+        wheel: true,
+        startScale: 0.5,
+        maxScale: 2,
+        minScale: 0.3,
+      },
+    })
+
+    workspaceRef.current = workspace
+
+    const addFactorBlock: StrategyWorkspaceAPI['addFactorBlock'] = ({
+      name,
+      direction = 'desc',
+      weight = 0.5,
+    }) => {
+      const root = workspace.getBlocksByType('strategy_root', false)[0]
+      if (!root) return
+      const factorsSection = root.getInputTargetBlock('FACTORS')
+      if (!factorsSection) return
+      if (!FACTOR_OPTIONS.some(([, value]) => value === name)) return
+
+      const factorBlock = workspace.newBlock('factor_item') as FactorBlock
+      factorBlock.setFieldValue(name, 'FACTOR')
+      if (DIRECTION_OPTIONS.some(([, value]) => value === direction)) {
+        factorBlock.setFieldValue(direction, 'DIRECTION')
+      }
+      if (Number.isFinite(weight)) {
+        factorBlock.setFieldValue(String(weight), 'WEIGHT')
+      }
+      factorBlock.initSvg()
+      factorBlock.render()
+      factorBlock.updateModelVisibility?.()
+
+      let lastFactor = factorsSection.getInputTargetBlock('ITEMS')
+      if (!lastFactor) {
+        factorsSection.getInput('ITEMS')?.connection?.connect(factorBlock.previousConnection)
+      } else {
+        while (lastFactor.getNextBlock()) {
+          lastFactor = lastFactor.getNextBlock()
+        }
+        lastFactor.nextConnection?.connect(factorBlock.previousConnection)
+      }
+
+      workspace.centerOnBlock(factorBlock.id)
+    }
+
+    onWorkspaceReady?.({ addFactorBlock })
+
+    const handleResize = () => {
+      Blockly.svgResize(workspace)
+    }
+
+    const handleChange = () => {
+      const nextConfig = extractStrategyFromWorkspace(workspace)
+      const serialized = JSON.stringify(nextConfig)
+      if (serialized !== lastSerializedRef.current) {
+        lastSerializedRef.current = serialized
+        onChange(nextConfig)
+      }
+    }
+
+    workspace.addChangeListener(handleChange)
+    window.addEventListener('resize', handleResize)
+
+    applyStrategyToWorkspace(workspace, value)
+    const initialConfig = extractStrategyFromWorkspace(workspace)
+    lastSerializedRef.current = JSON.stringify(initialConfig)
+    onChange(initialConfig)
+
+    setTimeout(() => {
+      Blockly.svgResize(workspace)
+    }, 0)
+
+    return () => {
+      workspace.removeChangeListener(handleChange)
+      window.removeEventListener('resize', handleResize)
+      workspace.dispose()
+      workspaceRef.current = null
+      onWorkspaceReady?.(null)
+    }
+  }, [onWorkspaceReady])
+
+  useEffect(() => {
+    const workspace = workspaceRef.current
+    if (!workspace) return
+    const serialized = JSON.stringify(value)
+    if (serialized === lastSerializedRef.current) {
+      return
+    }
+    applyStrategyToWorkspace(workspace, value)
+    const normalized = extractStrategyFromWorkspace(workspace)
+    lastSerializedRef.current = JSON.stringify(normalized)
+    onChange(normalized)
+  }, [value, onChange])
+
+  return (
+    <div
+      ref={containerRef}
+      className="blockly__workspace"
+      style={{ width: '100%', height: '100%', minHeight: '400px' }}
+    />
+  )
 }
+
+export default StrategyBlocklyEditor
