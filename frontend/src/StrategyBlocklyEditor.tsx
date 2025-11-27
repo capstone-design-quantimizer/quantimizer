@@ -109,7 +109,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 시장 / 기술적 지표',
-      colour: '#3B82F6', 
+      colour: '#3B82F6',
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PctChange' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'RSI_14' } },
@@ -123,7 +123,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 가치 지표 (Valuation)',
-      colour: '#6366F1', 
+      colour: '#6366F1',
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PER' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'PBR' } },
@@ -135,7 +135,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 수익성 (Profitability)',
-      colour: '#10B981', 
+      colour: '#10B981',
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROE' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'ROA' } },
@@ -146,7 +146,7 @@ const TOOLBOX: ToolboxDefinition = {
     {
       kind: 'category',
       name: '▶ 안정성 / 활동성',
-      colour: '#F59E0B', 
+      colour: '#F59E0B',
       contents: [
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'DebtToEquity' } },
         { kind: 'block', type: 'factor_item', fields: { 'FACTOR': 'CurrentRatio' } },
@@ -185,7 +185,7 @@ export const normalizeStrategyConfig = (input: unknown): StrategyConfig => {
       const validDirection = DIRECTION_OPTIONS.some(([, value]) => value === direction) ? direction : 'desc'
       const weightValue = Number(raw.weight)
       const weight = Number.isFinite(weightValue) ? weightValue : 0
-      factors.push({ name, direction: validDirection, weight })    
+      factors.push({ name, direction: validDirection, weight })
     }
     base.factors = factors
   }
@@ -359,7 +359,7 @@ const extractStrategyFromWorkspace = (workspace: any): StrategyConfig => {
     config.portfolio.top_n = Number.isFinite(topN) && topN > 0 ? Math.floor(topN) : config.portfolio.top_n
     const weight_method = portfolioBlock.getFieldValue('WEIGHT_METHOD') as PortfolioWeighting
     if (WEIGHTING_OPTIONS.some(([, value]) => value === weight_method)) {
-      config.portfolio.weight_method = weight_method 
+      config.portfolio.weight_method = weight_method
     }
   }
 
@@ -561,7 +561,13 @@ export const StrategyBlocklyEditor = ({
     onChange(normalized)
   }, [value, onChange])
 
-  return <div ref={containerRef} className="blockly__workspace" />
+  return (
+    <div
+      ref={containerRef}
+      className="blockly__workspace"
+      style={{ width: '100%', height: '100%', minHeight: '400px' }}
+    />
+  )
 }
 
 export default StrategyBlocklyEditor
