@@ -25,11 +25,19 @@ def run_backtest(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    strategy = db.query(Strategy).filter(Strategy.id == backtest_in.strategy_id, Strategy.owner_id == current_user.id).one_or_none()
+    strategy = (
+        db.query(Strategy)
+        .filter(Strategy.id == backtest_in.strategy_id, Strategy.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not strategy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
     
-    setting = db.query(BacktestSetting).filter(BacktestSetting.id == backtest_in.setting_id, BacktestSetting.owner_id == current_user.id).one_or_none()
+    setting = (
+        db.query(BacktestSetting)
+        .filter(BacktestSetting.id == backtest_in.setting_id, BacktestSetting.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not setting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest settings not found")
 
@@ -73,7 +81,7 @@ def list_my_backtests(
     )
 
     total, items = paginate(query, skip, limit)
-    return {"total": total, "items": items}
+    return BacktestListResponse(total=total, items=items)
 
 
 @router.delete("/{backtest_id}", status_code=status.HTTP_204_NO_CONTENT)

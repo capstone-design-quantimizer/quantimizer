@@ -88,7 +88,12 @@ def list_posts_endpoint(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> CommunityPostListResponse:
     posts = list_posts(db)
-    last_backtests = get_last_backtests(db, {post.strategy_id for post in posts})
+    
+    # Optimistic loading of last backtests.
+    # Note: Requires DB migration to include 'setting_id' in backtest_results.
+    strategy_ids = {post.strategy_id for post in posts}
+    last_backtests = get_last_backtests(db, strategy_ids)
+    
     items = [
         CommunityFeedItem(
             id=post.id,

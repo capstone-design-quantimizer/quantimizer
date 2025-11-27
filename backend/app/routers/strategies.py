@@ -49,7 +49,7 @@ def list_strategies(
 ):
     query = db.query(Strategy).filter(Strategy.owner_id == current_user.id).order_by(Strategy.created_at.desc())
     total, items = paginate(query, skip, limit)
-    return {"total": total, "items": items}
+    return StrategyListResponse(total=total, items=items)
 
 
 @router.get("/{strategy_id}", response_model=StrategyRead)
@@ -58,7 +58,11 @@ def get_strategy(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    strategy = db.query(Strategy).filter(Strategy.id == strategy_id, Strategy.owner_id == current_user.id).one_or_none()
+    strategy = (
+        db.query(Strategy)
+        .filter(Strategy.id == strategy_id, Strategy.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not strategy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
     return strategy
@@ -71,7 +75,11 @@ def update_strategy(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    strategy = db.query(Strategy).filter(Strategy.id == strategy_id, Strategy.owner_id == current_user.id).one_or_none()
+    strategy = (
+        db.query(Strategy)
+        .filter(Strategy.id == strategy_id, Strategy.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not strategy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
 
@@ -97,7 +105,11 @@ def delete_strategy(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    strategy = db.query(Strategy).filter(Strategy.id == strategy_id, Strategy.owner_id == current_user.id).one_or_none()
+    strategy = (
+        db.query(Strategy)
+        .filter(Strategy.id == strategy_id, Strategy.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not strategy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Strategy not found")
     db.delete(strategy)

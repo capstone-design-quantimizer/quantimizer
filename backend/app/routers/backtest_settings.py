@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
@@ -49,10 +49,13 @@ def list_settings(
     skip: int = 0,
     limit: int = 20,
 ):
-    query = db.query(BacktestSetting).filter(BacktestSetting.owner_id == current_user.id).order_by(BacktestSetting.created_at.desc())
-    # FIX: paginate returns (total, items) tuple. Convert to dict for Pydantic model.
+    query = (
+        db.query(BacktestSetting)
+        .filter(BacktestSetting.owner_id == current_user.id)
+        .order_by(BacktestSetting.created_at.desc())
+    )
     total, items = paginate(query, skip, limit)
-    return {"total": total, "items": items}
+    return BacktestSettingListResponse(total=total, items=items)
 
 
 @router.put("/{setting_id}", response_model=BacktestSettingRead)
@@ -62,10 +65,12 @@ def update_setting(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    # Basic implementation for update if needed by frontend
-    setting = db.query(BacktestSetting).filter(BacktestSetting.id == setting_id, BacktestSetting.owner_id == current_user.id).one_or_none()
+    setting = (
+        db.query(BacktestSetting)
+        .filter(BacktestSetting.id == setting_id, BacktestSetting.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not setting:
-        from fastapi import HTTPException, status
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setting not found")
     
     setting.name = setting_in.name
@@ -81,15 +86,18 @@ def update_setting(
     return setting
 
 
-@router.delete("/{setting_id}", status_code=204)
+@router.delete("/{setting_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_setting(
     setting_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    setting = db.query(BacktestSetting).filter(BacktestSetting.id == setting_id, BacktestSetting.owner_id == current_user.id).one_or_none()
+    setting = (
+        db.query(BacktestSetting)
+        .filter(BacktestSetting.id == setting_id, BacktestSetting.owner_id == current_user.id)
+        .one_or_none()
+    )
     if not setting:
-        from fastapi import HTTPException, status
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setting not found")
         
     db.delete(setting)
