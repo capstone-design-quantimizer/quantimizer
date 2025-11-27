@@ -7,6 +7,8 @@ import StrategyBlocklyEditor, {
   normalizeStrategyConfig
 } from "./StrategyBlocklyEditor";
 
+// -------------------- Types --------------------
+
 interface BacktestSetting {
   id: string;
   name: string;
@@ -50,16 +52,18 @@ interface Backtest {
   created_at: string;
 }
 
+// [수정됨] 실제 API 응답 구조에 맞춰 인터페이스 변경
 interface CommunityPost {
   id: string;
   title: string;
   content: string;
   author_username: string;
   created_at: string;
-  strategy_name: string;
-  strategy_id: string;
-  latest_metrics?: { return: number; mdd: number; cagr: number };
+  strategy?: Strategy;           // 중첩된 전략 객체
+  last_backtest?: Backtest;      // 중첩된 백테스트 객체
 }
+
+// -------------------- Constants --------------------
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const TOKEN_KEY = "quant.token";
@@ -68,6 +72,8 @@ const NEW_STRAT_ID = "__new__";
 const formatDate = (s: string) => new Date(s).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' });
 const formatPct = (n: number) => n ? `${(n * 100).toFixed(2)}%` : "0.00%";
 const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "compact", maximumFractionDigits: 1 }).format(n);
+
+// -------------------- Components --------------------
 
 const EquityChart = ({
   data,
@@ -191,6 +197,8 @@ const Pagination = ({ current, total, limit, onChange }: { current: number, tota
     </div>
   );
 };
+
+// -------------------- Main App --------------------
 
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
@@ -770,16 +778,10 @@ export default function App() {
             </div>
             <div className="strategy-grid">
               {posts.map(p => {
-                const linkedStrat = strategies.find(s => s.id === p.strategy_id);
-                const stratName = linkedStrat ? linkedStrat.name : (p.strategy_name || "Unknown Strategy");
-
-                const linkedBt = backtests
-                  .filter(b => b.strategy_id === p.strategy_id)
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-
-                const metrics = linkedBt
-                  ? { return: linkedBt.metrics.total_return, mdd: linkedBt.metrics.max_drawdown, cagr: linkedBt.metrics.cagr }
-                  : (p.latest_metrics || { return: 0, mdd: 0, cagr: 0 });
+                // [수정됨] 서버 응답의 중첩 객체를 직접 사용하여 렌더링
+                const stratName = p.strategy?.name || "Unknown Strategy";
+                const metrics = p.last_backtest?.metrics || { total_return: 0, max_drawdown: 0, cagr: 0 };
+                const stratId = p.strategy?.id;
 
                 return (
                   <div key={p.id} className="card">
@@ -801,17 +803,19 @@ export default function App() {
                         <div className="post-metric-row">
                           <div>
                             <span>수익률</span>
-                            <span className={metrics.return > 0 ? 'text-success' : 'text-danger'}>
-                              {formatPct(metrics.return)}
+                            <span className={metrics.total_return > 0 ? 'text-success' : 'text-danger'}>
+                              {formatPct(metrics.total_return)}
                             </span>
                           </div>
-                          <div><span>MDD</span><span className="text-danger">{formatPct(metrics.mdd)}</span></div>
+                          <div><span>MDD</span><span className="text-danger">{formatPct(metrics.max_drawdown)}</span></div>
                           <div><span>CAGR</span><span>{formatPct(metrics.cagr)}</span></div>
                         </div>
                       </div>
                       <div className="post-footer">
                         <span className="author">by <strong>{p.author_username}</strong></span>
-                        <button className="btn btn--secondary btn--sm" onClick={async () => { await api(`/community/posts/${p.id}/fork`, { method: 'POST' }); Swal.fire("완료", "전략을 가져왔습니다!", "success"); loadData(); }}>전략 가져오기</button>
+                        {stratId && (
+                          <button className="btn btn--secondary btn--sm" onClick={async () => { await api(`/community/posts/${p.id}/fork`, { method: 'POST' }); Swal.fire("완료", "전략을 가져왔습니다!", "success"); loadData(); }}>전략 가져오기</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1018,7 +1022,7 @@ export default function App() {
               <option value="">공유할 전략 선택...</option>
               {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <textarea className="textarea" placeholder="전략에 대한 설명과 논리를 공유해주세요..." value={postForm.content} onChange={e => setPostForm({ ...postForm, content: e.target.value })} />
+            <textarea className="textarea" placeholder="전략에 대한 설명을 공유해주세요..." value={postForm.content} onChange={e => setPostForm({ ...postForm, content: e.target.value })} />
             <div className="form-actions"><button className="btn btn--primary" onClick={createPost}>등록하기</button></div>
           </div>
         </Modal>
