@@ -890,17 +890,43 @@ export default function App() {
         <Modal title="수익률 비교 분석" onClose={() => setCompareModal(null)}>
           <div>
             <EquityChart data={compareModal.dataA.equity_curve} comparison={{ label: compareModal.labelB, data: compareModal.dataB.equity_curve }} height={300} />
-            <div className="metric-grid-mini" style={{ marginTop: 30 }}>
-              <div className="compare-col">
-                <h4 style={{ color: '#2563eb' }}>{compareModal.labelA}</h4>
-                <div className="metric-box"><label>수익률</label><span>{formatPct(compareModal.dataA.metrics.total_return)}</span></div>
-                <div className="metric-box"><label>Sharpe</label><span>{compareModal.dataA.metrics.sharpe.toFixed(2)}</span></div>
-              </div>
-              <div className="compare-col">
-                <h4 style={{ color: '#dc2626' }}>{compareModal.labelB}</h4>
-                <div className="metric-box"><label>수익률</label><span>{formatPct(compareModal.dataB.metrics.total_return)}</span></div>
-                <div className="metric-box"><label>Sharpe</label><span>{compareModal.dataB.metrics.sharpe.toFixed(2)}</span></div>
-              </div>
+            <div className="comparison-table-wrapper">
+              <table className="table comparison-table">
+                <thead>
+                  <tr>
+                    <th>지표</th>
+                    <th style={{ color: '#2563eb' }}>{compareModal.labelA}</th>
+                    <th style={{ color: '#dc2626' }}>{compareModal.labelB}</th>
+                    <th>차이</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>수익률</td>
+                    <td className={compareModal.dataA.metrics.total_return > 0 ? 'text-success' : 'text-danger'}>{formatPct(compareModal.dataA.metrics.total_return)}</td>
+                    <td className={compareModal.dataB.metrics.total_return > 0 ? 'text-success' : 'text-danger'}>{formatPct(compareModal.dataB.metrics.total_return)}</td>
+                    <td style={{ fontWeight: 700 }}>{formatPct(compareModal.dataA.metrics.total_return - compareModal.dataB.metrics.total_return)}</td>
+                  </tr>
+                  <tr>
+                    <td>MDD</td>
+                    <td>{formatPct(compareModal.dataA.metrics.max_drawdown)}</td>
+                    <td>{formatPct(compareModal.dataB.metrics.max_drawdown)}</td>
+                    <td>{formatPct(compareModal.dataA.metrics.max_drawdown - compareModal.dataB.metrics.max_drawdown)}</td>
+                  </tr>
+                  <tr>
+                    <td>CAGR</td>
+                    <td>{formatPct(compareModal.dataA.metrics.cagr)}</td>
+                    <td>{formatPct(compareModal.dataB.metrics.cagr)}</td>
+                    <td>{formatPct(compareModal.dataA.metrics.cagr - compareModal.dataB.metrics.cagr)}</td>
+                  </tr>
+                  <tr>
+                    <td>Sharpe</td>
+                    <td>{compareModal.dataA.metrics.sharpe.toFixed(2)}</td>
+                    <td>{compareModal.dataB.metrics.sharpe.toFixed(2)}</td>
+                    <td>{(compareModal.dataA.metrics.sharpe - compareModal.dataB.metrics.sharpe).toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </Modal>
@@ -916,7 +942,7 @@ export default function App() {
               <div style={{ color: 'var(--text-muted)' }}>누적 수익률</div>
             </div>
             <EquityChart data={resultModal.equity_curve} height={320} />
-            <div className="metric-grid-mini" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 32 }}>
+            <div className="metric-grid-results">
               <div className="metric-box"><label>CAGR</label><span>{formatPct(resultModal.metrics.cagr)}</span></div>
               <div className="metric-box"><label>MDD</label><span className="text-danger">{formatPct(resultModal.metrics.max_drawdown)}</span></div>
               <div className="metric-box"><label>Sharpe</label><span>{resultModal.metrics.sharpe.toFixed(2)}</span></div>

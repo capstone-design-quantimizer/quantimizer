@@ -55,7 +55,8 @@ body {
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  z-index: 50;
+  /* Increased z-index to 900 to appear above Blockly toolbox (usually 70) */
+  z-index: 900;
 }
 
 .top-header__inner {
@@ -392,12 +393,45 @@ body {
   margin-top: 24px;
 }
 
+/* New: 4-column grid for result report */
+.metric-grid-results {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 32px;
+}
+
 .metric-item {
   background: var(--bg-subtle);
   border-radius: 6px;
   padding: 12px;
   text-align: center;
   border: 1px solid var(--border);
+}
+
+/* Box style for the detailed report metrics */
+.metric-box {
+  background: var(--bg-subtle);
+  padding: 16px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-box label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.metric-box span {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-mono);
 }
 
 .metric-label {
@@ -695,7 +729,8 @@ body {
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(2px);
-  z-index: 1000;
+  /* Ensure modal is above the header which is 900 */
+  z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -878,6 +913,7 @@ body {
 
 .comparison-table {
   text-align: right;
+  margin-top: 24px;
 }
 
 .comparison-table th,
