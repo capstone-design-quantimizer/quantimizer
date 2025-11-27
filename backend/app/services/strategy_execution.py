@@ -204,9 +204,6 @@ def _build_scored_sql(universe: UniverseSpec, strategy: StrategySpec, start: dat
     if universe.min_market_cap is not None:
         where.append("COALESCE(s.market_cap, 0) >= :min_market_cap")
         params["min_market_cap"] = universe.min_market_cap
-    
-    # Handle excludes if needed
-    # if universe.excludes: ...
 
     where_sql = " AND ".join(where)
 
@@ -475,6 +472,10 @@ def _persist_backtest(
     metrics: dict[str, float],
     setting: BacktestSetting,
 ) -> BacktestResult:
+    # Inject setting info into metrics JSON to avoid DB migration issues
+    metrics["setting_id"] = str(setting.id)
+    metrics["setting_name"] = setting.name
+
     rec = BacktestResult(
         strategy_id=strategy_id,
         start_date=start,
@@ -483,8 +484,6 @@ def _persist_backtest(
         ml_model_id=ml_model.id if ml_model else None,
         equity_curve=equity_curve_list,
         metrics=metrics,
-        setting_id=setting.id,
-        setting_name=setting.name,
     )
     db.add(rec)
     db.commit()

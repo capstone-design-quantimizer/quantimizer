@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from app.db.session import Base
 
 if TYPE_CHECKING:
     from app.models.ml_model import MLModel
     from app.models.strategy import Strategy
-    from app.models.backtest_setting import BacktestSetting
 
 
 class BacktestResult(Base):
@@ -36,11 +36,14 @@ class BacktestResult(Base):
     metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    setting_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("backtest_settings.id", ondelete="SET NULL"), nullable=True
-    )
-    setting_name: Mapped[str | None] = mapped_column(nullable=True)
-
     strategy: Mapped["Strategy"] = relationship("Strategy", back_populates="backtests")
     ml_model: Mapped["MLModel | None"] = relationship("MLModel", back_populates="backtests")
-    setting: Mapped["BacktestSetting | None"] = relationship("BacktestSetting")
+
+    @property
+    def setting_id(self) -> uuid.UUID | None:
+        sid = self.metrics.get("setting_id")
+        return uuid.UUID(sid) if sid else None
+
+    @property
+    def setting_name(self) -> str | None:
+        return self.metrics.get("setting_name")
