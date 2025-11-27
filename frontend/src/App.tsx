@@ -203,6 +203,7 @@ const Pagination = ({ current, total, limit, onChange }: { current: number, tota
 
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
+  const [username, setUsername] = useState<string>("");
   const [page, setPage] = useState("dashboard");
   const [loading, setLoading] = useState(false);
 
@@ -249,6 +250,22 @@ export default function App() {
   const [postForm, setPostForm] = useState({ title: '', content: '', strategyId: '' });
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', username: '' });
+
+  // -------------------- Effects --------------------
+
+  useEffect(() => {
+    if (token) {
+      try {
+        // Simple JWT decode to get username
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUsername(payload.sub || payload.username || "");
+      } catch (e) {
+        console.error("Invalid token format");
+      }
+    } else {
+      setUsername("");
+    }
+  }, [token]);
 
   // -------------------- API --------------------
 
@@ -333,6 +350,20 @@ export default function App() {
     }
   };
 
+  const deleteStrategy = async (id: string) => {
+    const r = await Swal.fire({ title: '삭제하시겠습니까?', text: "이 작업은 되돌릴 수 없습니다.", icon: 'warning', showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소', confirmButtonColor: '#d33' });
+    if (r.isConfirmed) {
+      const res = await api(`/strategies/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadData();
+        Swal.fire("삭제됨", "전략이 삭제되었습니다.", "success");
+        if (bStratId === id) setBStratId(NEW_STRAT_ID);
+      } else {
+        Swal.fire("실패", "전략 삭제 중 오류가 발생했습니다.", "error");
+      }
+    }
+  };
+
   const runBacktest = async () => {
     if (bStratId === NEW_STRAT_ID) return Swal.fire("알림", "전략을 먼저 저장해주세요.", "warning");
     if (!bSettingId) return Swal.fire("알림", "백테스트 설정을 선택해주세요.", "warning");
@@ -359,6 +390,19 @@ export default function App() {
     if (!postForm.title) return Swal.fire("알림", "제목을 입력하세요.", "warning");
     await api("/community/posts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: postForm.title, content: postForm.content, strategy_id: postForm.strategyId }) });
     setWriteModal(false); loadData(); Swal.fire("등록 완료", "게시글이 등록되었습니다.", "success");
+  };
+
+  const deletePost = async (id: string) => {
+    const r = await Swal.fire({ title: '게시글 삭제', text: "정말 삭제하시겠습니까?", icon: 'warning', showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소', confirmButtonColor: '#d33' });
+    if (r.isConfirmed) {
+      const res = await api(`/community/posts/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadData();
+        Swal.fire("삭제됨", "게시글이 삭제되었습니다.", "success");
+      } else {
+        Swal.fire("오류", "삭제 권한이 없거나 오류가 발생했습니다.", "error");
+      }
+    }
   };
 
   const toggleStratSelection = (id: string) => {
@@ -686,9 +730,12 @@ export default function App() {
                         </div>
                         <div className="meta-label">{lastBt ? formatDate(lastBt.created_at) : '기록 없음'}</div>
                       </div>
-                      <div className="strategy-card-actions">
-                        <button className="btn btn--secondary" onClick={() => { setDetailStrat(s); setSelectedDetailBts([]); }}>상세 정보</button>
-                        <button className="btn btn--primary" onClick={() => { loadStratToBuilder(s.id); setPage('builder'); }}>수정</button>
+                      <div className="strategy-card-actions" style={{ justifyContent: 'space-between' }}>
+                        <button className="btn btn--danger" onClick={() => deleteStrategy(s.id)}>삭제</button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn btn--secondary" onClick={() => { setDetailStrat(s); setSelectedDetailBts([]); }}>상세 정보</button>
+                          <button className="btn btn--primary" onClick={() => { loadStratToBuilder(s.id); setPage('builder'); }}>수정</button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -755,13 +802,17 @@ export default function App() {
             </div>
             <div className="strategy-grid">
               {posts.map(p => {
-                const relevantBts = backtests.filter(b => b.strategy_id === p.strategy_id);
-                const latestBt = relevantBts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-                const stratName = p.strategy_name || strategies.find(s => s.id === p.strategy_id)?.name || "삭제된 전략";
+                const metrics = p.latest_metrics || { return: 0, mdd: 0, cagr: 0 };
+                const stratName = p.strategy_name || "Unknown Strategy";
 
                 return (
                   <div key={p.id} className="card">
-                    <div className="card__header">{p.title}</div>
+                    <div className="card__header" style={{ justifyContent: 'space-between' }}>
+                      <span>{p.title}</span>
+                      {p.author_username === username && (
+                        <button className="btn--danger btn--sm" onClick={() => deletePost(p.id)}>삭제</button>
+                      )}
+                    </div>
                     <div className="card__body">
                       <p className="card-desc">{p.content}</p>
 
@@ -770,19 +821,16 @@ export default function App() {
                       </div>
 
                       <div className="post-metrics">
-                        <div className="post-metric-label">
-                          최근 성과
-                          {latestBt && <span style={{ fontWeight: 400, marginLeft: 4 }}>({latestBt.setting_name})</span>}
-                        </div>
+                        <div className="post-metric-label">최근 성과</div>
                         <div className="post-metric-row">
                           <div>
                             <span>수익률</span>
-                            <span className={(latestBt?.metrics.total_return || 0) > 0 ? 'text-success' : 'text-danger'}>
-                              {formatPct(latestBt?.metrics.total_return || 0)}
+                            <span className={metrics.return > 0 ? 'text-success' : 'text-danger'}>
+                              {formatPct(metrics.return)}
                             </span>
                           </div>
-                          <div><span>MDD</span><span className="text-danger">{formatPct(latestBt?.metrics.max_drawdown || 0)}</span></div>
-                          <div><span>CAGR</span><span>{formatPct(latestBt?.metrics.cagr || 0)}</span></div>
+                          <div><span>MDD</span><span className="text-danger">{formatPct(metrics.mdd)}</span></div>
+                          <div><span>CAGR</span><span>{formatPct(metrics.cagr)}</span></div>
                         </div>
                       </div>
                       <div className="post-footer">
