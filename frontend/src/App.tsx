@@ -754,26 +754,45 @@ export default function App() {
               <button className="btn btn--primary" onClick={() => setWriteModal(true)}>+ 글쓰기</button>
             </div>
             <div className="strategy-grid">
-              {posts.map(p => (
-                <div key={p.id} className="card">
-                  <div className="card__header">{p.title}</div>
-                  <div className="card__body">
-                    <p className="card-desc">{p.content}</p>
-                    <div className="post-metrics">
-                      <div className="post-metric-label">최근 성과</div>
-                      <div className="post-metric-row">
-                        <div><span>수익률</span><span className="text-success">{formatPct(p.latest_metrics?.return || 0)}</span></div>
-                        <div><span>MDD</span><span className="text-danger">{formatPct(p.latest_metrics?.mdd || 0)}</span></div>
-                        <div><span>CAGR</span><span>{formatPct(p.latest_metrics?.cagr || 0)}</span></div>
+              {posts.map(p => {
+                const relevantBts = backtests.filter(b => b.strategy_id === p.strategy_id);
+                const latestBt = relevantBts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                const stratName = p.strategy_name || strategies.find(s => s.id === p.strategy_id)?.name || "삭제된 전략";
+
+                return (
+                  <div key={p.id} className="card">
+                    <div className="card__header">{p.title}</div>
+                    <div className="card__body">
+                      <p className="card-desc">{p.content}</p>
+
+                      <div style={{ marginBottom: 12, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        전략명: <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{stratName}</span>
+                      </div>
+
+                      <div className="post-metrics">
+                        <div className="post-metric-label">
+                          최근 성과
+                          {latestBt && <span style={{ fontWeight: 400, marginLeft: 4 }}>({latestBt.setting_name})</span>}
+                        </div>
+                        <div className="post-metric-row">
+                          <div>
+                            <span>수익률</span>
+                            <span className={(latestBt?.metrics.total_return || 0) > 0 ? 'text-success' : 'text-danger'}>
+                              {formatPct(latestBt?.metrics.total_return || 0)}
+                            </span>
+                          </div>
+                          <div><span>MDD</span><span className="text-danger">{formatPct(latestBt?.metrics.max_drawdown || 0)}</span></div>
+                          <div><span>CAGR</span><span>{formatPct(latestBt?.metrics.cagr || 0)}</span></div>
+                        </div>
+                      </div>
+                      <div className="post-footer">
+                        <span className="author">by <strong>{p.author_username}</strong></span>
+                        <button className="btn btn--secondary btn--sm" onClick={async () => { await api(`/community/posts/${p.id}/fork`, { method: 'POST' }); Swal.fire("완료", "전략을 가져왔습니다!", "success"); loadData(); }}>전략 가져오기</button>
                       </div>
                     </div>
-                    <div className="post-footer">
-                      <span className="author">by <strong>{p.author_username}</strong></span>
-                      <button className="btn btn--secondary btn--sm" onClick={async () => { await api(`/community/posts/${p.id}/fork`, { method: 'POST' }); Swal.fire("완료", "전략을 가져왔습니다!", "success"); loadData(); }}>전략 가져오기</button>
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
