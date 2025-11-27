@@ -545,15 +545,20 @@ export default function App() {
         {page === 'builder' && (
           <div className="builder-container">
             <div className="builder-top-controls card">
+              {/* Row 1: Strategy Selection */}
               <div className="control-group">
-                <div className="control-item">
+                <div className="control-item" style={{ flex: 1 }}>
                   <label>전략 선택</label>
                   <select className="select" value={bStratId} onChange={e => loadStratToBuilder(e.target.value)}>
                     <option value={NEW_STRAT_ID}>+ 새 전략 작성</option>
                     {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
-                <div className="control-item" style={{ flex: 2 }}>
+              </div>
+
+              {/* Row 2: Strategy Name & Save */}
+              <div className="control-group">
+                <div className="control-item" style={{ flex: 1 }}>
                   <label>전략 이름</label>
                   <input className="input" placeholder="전략 이름 입력" value={bName} onChange={e => setBName(e.target.value)} />
                 </div>
@@ -562,7 +567,10 @@ export default function App() {
                   <button className="btn btn--secondary" onClick={saveStrategy}>전략 저장</button>
                 </div>
               </div>
+
               <div className="control-divider" />
+
+              {/* Row 3: Backtest Settings & Run */}
               <div className="control-group">
                 <div className="control-item" style={{ flex: 2 }}>
                   <label>백테스트 설정</label>
@@ -872,6 +880,7 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+              <Pagination current={stPage} total={backtests.filter(b => b.strategy_id === detailStrat.id).length} limit={5} onChange={p => console.log(p)} />
             </div>
           </div>
         </Modal>
