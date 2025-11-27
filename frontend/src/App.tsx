@@ -124,7 +124,6 @@ const EquityChart = ({
     if (mddSeries.length === 0) return "";
     return mddSeries.map((val, i) => {
       const x = padding.left + (i / (mddSeries.length - 1)) * graphW;
-      // MDD 그래프는 하단 25% 영역에 표시
       const y = padding.top + graphH - (Math.abs(val) / mddRange) * (graphH * 0.25);
       return `${x},${y}`;
     }).join(" ");
@@ -146,7 +145,6 @@ const EquityChart = ({
     <div>
       <div className="equity-chart" style={{ height }}>
         <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" className="chart-svg">
-          {/* Grid & Axis */}
           {yTicks.map((tick, i) => (
             <g key={i}>
               <line x1={padding.left} y1={tick.y} x2={svgW - padding.right} y2={tick.y} className="chart-grid" />
@@ -156,16 +154,10 @@ const EquityChart = ({
           {xTicks.map((tick, i) => (
             <text key={i} x={tick.x} y={svgH - 5} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="chart-axis-text">{tick.label}</text>
           ))}
-
-          {/* Comparison Line */}
           {comparison && (
             <polyline points={getPoints(compData)} fill="none" stroke="#dc2626" strokeWidth="2" strokeDasharray="4,2" vectorEffect="non-scaling-stroke" opacity={0.5} />
           )}
-
-          {/* Main Equity Line */}
           <polyline points={getPoints(mainData)} fill="none" stroke="#2563eb" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-
-          {/* MDD Line (Red, Bottom) */}
           <polyline points={getMddPoints()} fill="none" stroke="#ef4444" strokeWidth="1" vectorEffect="non-scaling-stroke" opacity={0.8} />
         </svg>
       </div>
@@ -193,9 +185,7 @@ const Modal = ({ title, onClose, children }: { title: string, onClose: () => voi
 const Pagination = ({ current, total, limit, onChange }: { current: number, total: number, limit: number, onChange: (p: number) => void }) => {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
-
   if (totalPages <= 1) return null;
-
   return (
     <div className="pagination">
       <button className="btn--icon" disabled={current === 1} onClick={() => onChange(current - 1)}>‹</button>
@@ -242,10 +232,15 @@ export default function App() {
   // Filtering
   const [btFilter, setBtFilter] = useState("ALL");
 
+  // Strategy Comparison State (New)
+  const [compareStratIds, setCompareStratIds] = useState<string[]>([]);
+  const [isStrategyCompareModalOpen, setIsStrategyCompareModalOpen] = useState(false);
+  const [strategyCompareSettingId, setStrategyCompareSettingId] = useState<string>("");
+
   // Modals & Forms
   const [detailStrat, setDetailStrat] = useState<Strategy | null>(null);
   const [selectedDetailBts, setSelectedDetailBts] = useState<string[]>([]);
-  const [compareModal, setCompareModal] = useState<any>(null);
+  const [compareModal, setCompareModal] = useState<any>(null); // Existing (Backtest vs Backtest)
   const [resultModal, setResultModal] = useState<Backtest | null>(null);
   const [settingModal, setSettingModal] = useState(false);
   const [writeModal, setWriteModal] = useState(false);
@@ -283,8 +278,10 @@ export default function App() {
       setSettings(st.items || []);
       setBacktests(b.items || []);
       setPosts(p.items || []);
-      // Default setting selection
-      if (st.items && st.items.length > 0 && !bSettingId) setBSettingId(st.items[0].id);
+      if (st.items && st.items.length > 0 && !bSettingId) {
+        setBSettingId(st.items[0].id);
+        setStrategyCompareSettingId(st.items[0].id);
+      }
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [token, api, bSettingId]);
@@ -364,6 +361,18 @@ export default function App() {
     setWriteModal(false); loadData(); Swal.fire("등록 완료", "게시글이 등록되었습니다.", "success");
   };
 
+  const toggleStratSelection = (id: string) => {
+    if (compareStratIds.includes(id)) {
+      setCompareStratIds(prev => prev.filter(x => x !== id));
+    } else {
+      if (compareStratIds.length < 2) {
+        setCompareStratIds(prev => [...prev, id]);
+      } else {
+        Swal.fire("알림", "비교는 최대 2개의 전략까지 선택 가능합니다.", "info");
+      }
+    }
+  };
+
   // -------------------- Computed --------------------
 
   const maxReturnBacktest = useMemo(() => {
@@ -385,6 +394,24 @@ export default function App() {
     }
     return sorted.slice(0, 3);
   }, [backtests, dashboardFilter]);
+
+  const strategyCompareData = useMemo(() => {
+    if (compareStratIds.length !== 2 || !strategyCompareSettingId) return null;
+
+    const s1 = strategies.find(s => s.id === compareStratIds[0]);
+    const s2 = strategies.find(s => s.id === compareStratIds[1]);
+
+    // Find latest backtest for each strategy with the selected setting
+    const bt1 = backtests
+      .filter(b => b.strategy_id === compareStratIds[0] && b.setting_id === strategyCompareSettingId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+    const bt2 = backtests
+      .filter(b => b.strategy_id === compareStratIds[1] && b.setting_id === strategyCompareSettingId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+    return { s1, s2, bt1, bt2 };
+  }, [compareStratIds, strategyCompareSettingId, strategies, backtests]);
 
   const handleSlide = (dir: 'next' | 'prev') => {
     if (dashboardCards.length === 0) return;
@@ -628,8 +655,17 @@ export default function App() {
             <div className="strategy-grid">
               {strategies.slice((stratPage - 1) * 6, stratPage * 6).map(s => {
                 const lastBt = backtests.filter(b => b.strategy_id === s.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                const isSelected = compareStratIds.includes(s.id);
                 return (
-                  <div key={s.id} className="card">
+                  <div key={s.id} className={`card ${isSelected ? 'card-selected' : ''}`} style={{ position: 'relative' }}>
+                    <div className="card-selection-overlay">
+                      <input
+                        type="checkbox"
+                        className="strategy-checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleStratSelection(s.id)}
+                      />
+                    </div>
                     <div className="card__header">{s.name}</div>
                     <div className="card__body">
                       <p className="card-desc">{s.description || "설명 없음"}</p>
@@ -652,6 +688,22 @@ export default function App() {
               })}
             </div>
             <Pagination current={stratPage} total={strategies.length} limit={6} onChange={setStratPage} />
+
+            {/* Compare Floating Bar */}
+            {compareStratIds.length === 2 && (
+              <div className="compare-floating-bar">
+                <div className="compare-info">
+                  <span className="compare-count">2개 선택됨</span>
+                  <span className="compare-names">
+                    {strategies.find(s => s.id === compareStratIds[0])?.name} vs {strategies.find(s => s.id === compareStratIds[1])?.name}
+                  </span>
+                </div>
+                <div className="compare-actions">
+                  <button className="btn btn--ghost" style={{ color: '#fff' }} onClick={() => setCompareStratIds([])}>취소</button>
+                  <button className="btn btn--primary" style={{ background: '#fff', color: '#000' }} onClick={() => setIsStrategyCompareModalOpen(true)}>전략 비교하기</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -720,6 +772,76 @@ export default function App() {
       </main>
 
       {/* -------------------- Modals -------------------- */}
+
+      {/* Strategy Comparison Modal (New) */}
+      {isStrategyCompareModalOpen && (
+        <Modal title="전략 성과 비교 분석" onClose={() => setIsStrategyCompareModalOpen(false)}>
+          <div className="comparison-layout">
+            <div className="comparison-controls">
+              <label style={{ fontWeight: 600, marginRight: 12 }}>비교할 백테스트 조건:</label>
+              <select className="select" style={{ width: 300 }} value={strategyCompareSettingId} onChange={e => setStrategyCompareSettingId(e.target.value)}>
+                {settings.map(s => <option key={s.id} value={s.id}>{s.name} ({s.market})</option>)}
+              </select>
+            </div>
+
+            {strategyCompareData && strategyCompareData.bt1 && strategyCompareData.bt2 ? (
+              <>
+                <div className="comparison-chart-section">
+                  <EquityChart
+                    data={strategyCompareData.bt1.equity_curve}
+                    comparison={{ label: strategyCompareData.s2?.name || "B", data: strategyCompareData.bt2.equity_curve }}
+                    height={320}
+                  />
+                </div>
+
+                <div className="comparison-table-wrapper">
+                  <table className="table comparison-table">
+                    <thead>
+                      <tr>
+                        <th>지표</th>
+                        <th style={{ color: '#2563eb' }}>{strategyCompareData.s1?.name}</th>
+                        <th style={{ color: '#dc2626' }}>{strategyCompareData.s2?.name}</th>
+                        <th>차이 (Diff)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>총 수익률</td>
+                        <td className={strategyCompareData.bt1.metrics.total_return > 0 ? 'text-success' : 'text-danger'}>{formatPct(strategyCompareData.bt1.metrics.total_return)}</td>
+                        <td className={strategyCompareData.bt2.metrics.total_return > 0 ? 'text-success' : 'text-danger'}>{formatPct(strategyCompareData.bt2.metrics.total_return)}</td>
+                        <td style={{ fontWeight: 700 }}>{formatPct(strategyCompareData.bt1.metrics.total_return - strategyCompareData.bt2.metrics.total_return)}</td>
+                      </tr>
+                      <tr>
+                        <td>MDD</td>
+                        <td>{formatPct(strategyCompareData.bt1.metrics.max_drawdown)}</td>
+                        <td>{formatPct(strategyCompareData.bt2.metrics.max_drawdown)}</td>
+                        <td>{formatPct(strategyCompareData.bt1.metrics.max_drawdown - strategyCompareData.bt2.metrics.max_drawdown)}</td>
+                      </tr>
+                      <tr>
+                        <td>CAGR</td>
+                        <td>{formatPct(strategyCompareData.bt1.metrics.cagr)}</td>
+                        <td>{formatPct(strategyCompareData.bt2.metrics.cagr)}</td>
+                        <td>{formatPct(strategyCompareData.bt1.metrics.cagr - strategyCompareData.bt2.metrics.cagr)}</td>
+                      </tr>
+                      <tr>
+                        <td>Sharpe</td>
+                        <td>{strategyCompareData.bt1.metrics.sharpe.toFixed(2)}</td>
+                        <td>{strategyCompareData.bt2.metrics.sharpe.toFixed(2)}</td>
+                        <td>{(strategyCompareData.bt1.metrics.sharpe - strategyCompareData.bt2.metrics.sharpe).toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>선택하신 조건({settings.find(s => s.id === strategyCompareSettingId)?.name})으로 실행된 백테스트 결과가 두 전략 모두에 존재해야 비교가 가능합니다.</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>각 전략의 수정 화면에서 해당 조건으로 백테스트를 실행해주세요.</p>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {detailStrat && (
         <Modal title={detailStrat.name} onClose={() => setDetailStrat(null)}>
