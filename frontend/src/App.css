@@ -28,6 +28,9 @@
 
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.05);
+
+  --header-height: 60px;
+  --tab-height: 48px;
 }
 
 * {
@@ -42,6 +45,8 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  /* 모바일 가로 스크롤 방지 */
 }
 
 .app-shell {
@@ -66,7 +71,7 @@ body {
 }
 
 .header-top-row {
-  height: 60px;
+  height: var(--header-height);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -103,6 +108,7 @@ body {
   cursor: pointer;
   color: var(--text-secondary);
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .logout-button:hover {
@@ -113,9 +119,16 @@ body {
 .nav-tabs {
   display: flex;
   gap: 24px;
-  height: 48px;
+  height: var(--tab-height);
   align-items: center;
   overflow-x: auto;
+  /* 모바일 스크롤 바 숨김 처리 */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-tab {
@@ -129,6 +142,8 @@ body {
   transition: color 0.2s, border-color 0.2s;
   font-family: var(--font-sans);
   white-space: nowrap;
+  flex-shrink: 0;
+  /* 탭 줄어듦 방지 */
 }
 
 .nav-tab:hover {
@@ -197,6 +212,9 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  /* 모바일 대응 */
+  gap: 12px;
 }
 
 .section-title {
@@ -480,6 +498,8 @@ body {
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .card__body {
@@ -542,6 +562,7 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   font-family: var(--font-sans);
+  white-space: nowrap;
 }
 
 .btn--primary {
@@ -625,6 +646,8 @@ body {
 /* Table */
 .table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* 부드러운 스크롤 */
 }
 
 .table {
@@ -647,6 +670,7 @@ body {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   color: var(--text-main);
+  white-space: nowrap;
 }
 
 .table tr:last-child td {
@@ -740,6 +764,8 @@ body {
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  margin: 20px;
+  /* 모바일 마진 */
 }
 
 .modal__header {
@@ -804,6 +830,7 @@ body {
   gap: 16px;
   margin-top: 12px;
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .legend-item {
@@ -825,6 +852,7 @@ body {
   justify-content: center;
   min-height: 100vh;
   background: var(--bg-subtle);
+  padding: 20px;
 }
 
 .auth-card {
@@ -854,6 +882,8 @@ body {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
   z-index: 100;
   animation: floatUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  width: max-content;
+  max-width: 90%;
 }
 
 @keyframes floatUp {
@@ -977,7 +1007,7 @@ body {
   align-items: center;
 }
 
-/* Onboarding Layout */
+/* Onboarding New Layout */
 .onboarding-container {
   display: flex;
   flex-direction: column;
@@ -1119,37 +1149,6 @@ body {
   font-size: 13px;
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 900px) {
-
-  .feature-row,
-  .feature-row:nth-child(even) {
-    flex-direction: column;
-    gap: 32px;
-    text-align: center;
-  }
-
-  .feature-text {
-    text-align: center;
-    order: 1;
-    /* 텍스트를 위로 */
-  }
-
-  .feature-icon-large {
-    margin: 0 auto 20px auto;
-  }
-
-  .feature-image-container {
-    order: 2;
-    /* 이미지를 아래로 */
-    width: 100%;
-  }
-
-  .onboarding-title {
-    font-size: 36px;
-  }
-}
-
 /* Top 3 Performers Section */
 .top-performers-grid {
   display: grid;
@@ -1267,4 +1266,122 @@ body {
 
 .view-btn:hover {
   text-decoration: underline;
+}
+
+/* ----------------------------------------------------
+   Mobile Responsiveness
+   ---------------------------------------------------- */
+@media (max-width: 900px) {
+
+  /* Common */
+  .main-content {
+    padding: 20px 16px 80px 16px;
+    gap: 32px;
+  }
+
+  /* Header */
+  .top-header__inner {
+    padding: 0 16px;
+  }
+
+  .header-top-row {
+    padding: 8px 0;
+  }
+
+  /* Onboarding */
+  .feature-row,
+  .feature-row:nth-child(even) {
+    flex-direction: column;
+    gap: 32px;
+    text-align: center;
+  }
+
+  .feature-text {
+    text-align: center;
+    order: 1;
+  }
+
+  .feature-icon-large {
+    margin: 0 auto 20px auto;
+  }
+
+  .feature-image-container {
+    order: 2;
+    width: 100%;
+  }
+
+  .onboarding-title {
+    font-size: 36px;
+  }
+
+  /* Dashboard */
+  .kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .carousel-slide {
+    padding: 24px;
+  }
+
+  /* Grids */
+  .strategy-grid,
+  .top-performers-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* Builder */
+  .builder-split-view {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .builder-editor-pane {
+    height: 500px;
+    flex: none;
+  }
+
+  .builder-result-pane {
+    height: auto;
+    min-height: 400px;
+  }
+
+  .control-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .metric-grid-compact,
+  .metric-grid-results {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Modal */
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-floating-bar {
+    padding: 12px 16px;
+    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 12px;
+  }
+
+  .compare-actions {
+    justify-content: flex-end;
+  }
+
+  /* Top 3 Cards in Mobile */
+  .top-card-body {
+    flex-direction: column;
+  }
+
+  .mini-chart-container {
+    width: 100%;
+    height: 120px;
+    margin-top: 16px;
+  }
 }
