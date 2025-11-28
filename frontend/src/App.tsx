@@ -24,7 +24,9 @@ const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "com
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
   const [username, setUsername] = useState<string>("");
-  const [page, setPage] = useState("dashboard");
+
+  // page 초기값: 토큰이 있으면 대시보드, 없으면 온보딩
+  const [page, setPage] = useState(token ? "dashboard" : "onboarding");
   const [loading, setLoading] = useState(false);
 
   // Global State
@@ -79,6 +81,7 @@ export default function App() {
     if (res.status === 401) {
       setToken(null);
       localStorage.removeItem(TOKEN_KEY);
+      setPage("onboarding"); // 토큰 만료 시 온보딩으로 이동
       Swal.fire("인증 만료", "다시 로그인해주세요.", "warning");
       throw new Error("Auth");
     }
@@ -123,6 +126,7 @@ export default function App() {
           const d = await res.json();
           setToken(d.access_token);
           localStorage.setItem(TOKEN_KEY, d.access_token);
+          setPage("dashboard"); // 로그인 성공 시 대시보드로 이동
         }
       } else Swal.fire("실패", "로그인 또는 가입 정보를 확인하세요.", "error");
     } catch { Swal.fire("오류", "네트워크 오류가 발생했습니다.", "error"); }
@@ -233,7 +237,7 @@ export default function App() {
   // Top 3 Posts for Community Page
   const topCommunityPosts = useMemo(() => {
     return [...posts]
-      .filter(p => p.last_backtest) // Ensure backtest data exists
+      .filter(p => p.last_backtest)
       .sort((a, b) => (b.last_backtest!.metrics.total_return - a.last_backtest!.metrics.total_return))
       .slice(0, 3);
   }, [posts]);
@@ -255,23 +259,39 @@ export default function App() {
     });
   };
 
-  if (!token) return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h2 style={{ marginBottom: 8, fontSize: '1.8rem', fontWeight: 800 }}>QuantiMizer</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>퀀트 투자의 모든 것</p>
-        <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {authMode === 'register' && <input className="input" placeholder="사용자명" value={authForm.username} onChange={e => setAuthForm({ ...authForm, username: e.target.value })} required />}
-          <input className="input" placeholder="이메일" type="email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })} required />
-          <input className="input" placeholder="비밀번호" type="password" value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} required />
-          <button className="btn btn--primary" style={{ height: 44 }}>{authMode === 'login' ? '로그인' : '회원가입'}</button>
-        </form>
-        <button className="btn--ghost" style={{ marginTop: 16 }} onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
-          {authMode === 'login' ? '계정 만들기' : '로그인하기'}
-        </button>
+  if (page === 'onboarding') {
+    return (
+      <Onboarding
+        onStart={() => setPage(token ? 'dashboard' : 'login')}
+      />
+    );
+  }
+
+  if (!token) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card">
+          <h2 style={{ marginBottom: 8, fontSize: '1.8rem', fontWeight: 800 }}>QuantiMizer</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>퀀트 투자의 모든 것</p>
+          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {authMode === 'register' && <input className="input" placeholder="사용자명" value={authForm.username} onChange={e => setAuthForm({ ...authForm, username: e.target.value })} required />}
+            <input className="input" placeholder="이메일" type="email" value={authForm.email} onChange={e => setAuthForm({ ...authForm, email: e.target.value })} required />
+            <input className="input" placeholder="비밀번호" type="password" value={authForm.password} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} required />
+            <button className="btn btn--primary" style={{ height: 44 }}>{authMode === 'login' ? '로그인' : '회원가입'}</button>
+          </form>
+          <button className="btn--ghost" style={{ marginTop: 16 }} onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
+            {authMode === 'login' ? '계정 만들기' : '로그인하기'}
+          </button>
+
+          <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <button className="btn--ghost" onClick={() => setPage('onboarding')} style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              &larr; 서비스 소개 보기
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -285,7 +305,11 @@ export default function App() {
               <button className="logout-button" onClick={() => setPage('onboarding')} style={{ border: 'none', background: 'var(--bg-subtle)', fontWeight: 600 }}>
                 💡 처음이신가요?
               </button>
-              <button className="logout-button" onClick={() => { setToken(null); localStorage.removeItem(TOKEN_KEY); }}>로그아웃</button>
+              <button className="logout-button" onClick={() => {
+                setToken(null);
+                localStorage.removeItem(TOKEN_KEY);
+                setPage("onboarding"); // 로그아웃 시 온보딩으로 이동
+              }}>로그아웃</button>
             </div>
           </div>
           <nav className="nav-tabs">
@@ -306,10 +330,6 @@ export default function App() {
       </header>
 
       <main className="main-content">
-        {page === 'onboarding' && (
-          <Onboarding onStart={() => setPage('builder')} />
-        )}
-
         {page === 'dashboard' && (
           <>
             <div className="kpi-grid">
