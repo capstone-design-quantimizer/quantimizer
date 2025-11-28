@@ -230,6 +230,14 @@ export default function App() {
     return sorted.slice(0, 3);
   }, [backtests, dashboardFilter]);
 
+  // Top 3 Posts for Community Page
+  const topCommunityPosts = useMemo(() => {
+    return [...posts]
+      .filter(p => p.last_backtest) // Ensure backtest data exists
+      .sort((a, b) => (b.last_backtest!.metrics.total_return - a.last_backtest!.metrics.total_return))
+      .slice(0, 3);
+  }, [posts]);
+
   const strategyCompareData = useMemo(() => {
     if (compareStratIds.length !== 2 || !strategyCompareSettingId) return null;
     const s1 = strategies.find(s => s.id === compareStratIds[0]);
@@ -513,6 +521,64 @@ export default function App() {
               <h2 className="section-title">커뮤니티</h2>
               <button className="btn btn--primary" onClick={() => setWriteModal(true)}>+ 글쓰기</button>
             </div>
+
+            {/* Top 3 Performers Section */}
+            {topCommunityPosts.length > 0 && (
+              <div style={{ marginBottom: 40 }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: 16 }}>최근 수익률 TOP 3</h3>
+                <div className="top-performers-grid">
+                  {topCommunityPosts.map(p => {
+                    const metrics = p.last_backtest!.metrics;
+                    const tags = settings.find(s => s.id === p.last_backtest!.setting_id)?.market || 'ALL';
+                    const author = p.author_username;
+
+                    return (
+                      <div key={p.id} className="top-card" onClick={() => setResultModal(p.last_backtest!)}>
+                        <div className="top-card-tags">
+                          <span className="top-tag">{tags}</span>
+                          <span className="top-tag sub">{author}</span>
+                        </div>
+                        <div className="top-card-title">{p.title}</div>
+                        <div className="top-card-return">
+                          {formatPct(metrics.total_return)}
+                        </div>
+                        <div className="top-card-body">
+                          <div className="top-card-metrics">
+                            <div className="mini-metric-row">
+                              <span className="mini-metric-label">누적수익률</span>
+                              <span className="mini-metric-value">{formatPct(metrics.total_return)}</span>
+                            </div>
+                            <div className="mini-metric-row">
+                              <span className="mini-metric-label">연평균수익률</span>
+                              <span className="mini-metric-value">{formatPct(metrics.cagr)}</span>
+                            </div>
+                            <div className="mini-metric-row">
+                              <span className="mini-metric-label">최대손실폭</span>
+                              <span className="mini-metric-value">{formatPct(metrics.max_drawdown)}</span>
+                            </div>
+                          </div>
+                          <div className="mini-chart-container">
+                            <EquityChart data={p.last_backtest!.equity_curve} height={80} minimal={true} />
+                          </div>
+                        </div>
+                        <div className="top-card-footer">
+                          <button className="view-btn" onClick={(e) => {
+                            e.stopPropagation();
+                            api(`/community/posts/${p.id}/fork`, { method: 'POST' }).then(() => {
+                              Swal.fire("완료", "전략을 가져왔습니다!", "success");
+                              loadData();
+                            });
+                          }}>
+                            전략 가져오기 ➔
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="strategy-grid">
               {posts.map(p => {
                 const stratName = p.strategy?.name || "Unknown Strategy";

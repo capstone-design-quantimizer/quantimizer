@@ -5,14 +5,15 @@ interface Props {
     data: EquityPoint[];
     comparison?: { label: string; data: EquityPoint[] };
     height?: number;
+    minimal?: boolean;
 }
 
 const formatDate = (s: string) => new Date(s).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' });
 const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-const EquityChart: React.FC<Props> = ({ data, comparison, height = 240 }) => {
+const EquityChart: React.FC<Props> = ({ data, comparison, height = 240, minimal = false }) => {
     if (!data || data.length === 0) {
-        return <div className="equity-chart" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', background: '#fafafa', borderRadius: 6, border: '1px dashed #eaeaea' }}>데이터 없음</div>;
+        return <div className="equity-chart" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', background: '#fafafa', borderRadius: 6, border: '1px dashed #eaeaea', fontSize: minimal ? '11px' : '14px' }}>데이터 없음</div>;
     }
 
     const mainData = data.map(d => d.equity);
@@ -31,7 +32,10 @@ const EquityChart: React.FC<Props> = ({ data, comparison, height = 240 }) => {
     const minMdd = Math.min(...mddSeries);
     const mddRange = Math.abs(minMdd) || 0.1;
 
-    const padding = { top: 20, bottom: 30, left: 50, right: 20 };
+    const padding = minimal
+        ? { top: 5, bottom: 5, left: 5, right: 5 }
+        : { top: 20, bottom: 30, left: 50, right: 20 };
+
     const svgW = 1000;
     const svgH = height;
     const graphW = svgW - padding.left - padding.right;
@@ -71,27 +75,29 @@ const EquityChart: React.FC<Props> = ({ data, comparison, height = 240 }) => {
         <div>
             <div className="equity-chart" style={{ height }}>
                 <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" className="chart-svg">
-                    {yTicks.map((tick, i) => (
+                    {!minimal && yTicks.map((tick, i) => (
                         <g key={i}>
                             <line x1={padding.left} y1={tick.y} x2={svgW - padding.right} y2={tick.y} className="chart-grid" />
                             <text x={padding.left - 10} y={tick.y + 4} textAnchor="end" className="chart-axis-text">{formatNum(tick.val)}</text>
                         </g>
                     ))}
-                    {xTicks.map((tick, i) => (
+                    {!minimal && xTicks.map((tick, i) => (
                         <text key={i} x={tick.x} y={svgH - 5} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="chart-axis-text">{tick.label}</text>
                     ))}
                     {comparison && (
                         <polyline points={getPoints(compData)} fill="none" stroke="#dc2626" strokeWidth="2" strokeDasharray="4,2" vectorEffect="non-scaling-stroke" opacity={0.5} />
                     )}
-                    <polyline points={getPoints(mainData)} fill="none" stroke="#2563eb" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                    <polyline points={getMddPoints()} fill="none" stroke="#ef4444" strokeWidth="1" vectorEffect="non-scaling-stroke" opacity={0.8} />
+                    <polyline points={getPoints(mainData)} fill="none" stroke={minimal ? "#ff5a5a" : "#2563eb"} strokeWidth={minimal ? "3" : "2"} vectorEffect="non-scaling-stroke" />
+                    {!minimal && <polyline points={getMddPoints()} fill="none" stroke="#ef4444" strokeWidth="1" vectorEffect="non-scaling-stroke" opacity={0.8} />}
                 </svg>
             </div>
-            <div className="chart-legend-html">
-                <div className="legend-item"><div className="legend-dot" style={{ background: "#2563eb" }}></div><span>Equity</span></div>
-                <div className="legend-item"><div className="legend-dot" style={{ background: "#ef4444" }}></div><span>Drawdown</span></div>
-                {comparison && <div className="legend-item"><div className="legend-dot" style={{ background: "#dc2626", opacity: 0.5 }}></div><span style={{ color: "#dc2626" }}>{comparison.label}</span></div>}
-            </div>
+            {!minimal && (
+                <div className="chart-legend-html">
+                    <div className="legend-item"><div className="legend-dot" style={{ background: "#2563eb" }}></div><span>Equity</span></div>
+                    <div className="legend-item"><div className="legend-dot" style={{ background: "#ef4444" }}></div><span>Drawdown</span></div>
+                    {comparison && <div className="legend-item"><div className="legend-dot" style={{ background: "#dc2626", opacity: 0.5 }}></div><span style={{ color: "#dc2626" }}>{comparison.label}</span></div>}
+                </div>
+            )}
         </div>
     );
 };

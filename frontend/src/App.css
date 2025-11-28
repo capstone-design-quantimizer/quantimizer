@@ -24,6 +24,7 @@
   --success: #0070f3;
   --danger: #e00;
   --warning: #f5a623;
+  --up-color: #f73636;
 
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -1073,4 +1074,123 @@ body {
 .onboarding-footer {
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* Top 3 Performers Section */
+.top-performers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.top-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.top-card:hover {
+  box-shadow: var(--shadow-card);
+}
+
+.top-card-tags {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.top-tag {
+  background: #3B82F6;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.top-tag.sub {
+  background: #9333EA;
+}
+
+.top-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-card-return {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--up-color);
+  letter-spacing: -1px;
+  font-family: var(--font-mono);
+  margin-bottom: 24px;
+}
+
+.top-card-body {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.top-card-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.mini-metric-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.mini-metric-label {
+  color: var(--text-secondary);
+}
+
+.mini-metric-value {
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.mini-chart-container {
+  width: 120px;
+  height: 80px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.top-card-footer {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.view-btn {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.view-btn:hover {
+  text-decoration: underline;
 }
