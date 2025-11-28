@@ -1,67 +1,13 @@
 import { useCallback, useEffect, useState, useMemo, type FormEvent } from "react";
 import Swal from 'sweetalert2';
 import "./App.css";
-import StrategyBlocklyEditor, {
-  DEFAULT_STRATEGY_CONFIG,
-  type StrategyConfig,
-  normalizeStrategyConfig
-} from "./StrategyBlocklyEditor";
 
-// -------------------- Types --------------------
-
-interface BacktestSetting {
-  id: string;
-  name: string;
-  market: string;
-  min_market_cap: number;
-  start_date: string;
-  end_date: string;
-  initial_capital: number;
-  created_at: string;
-}
-
-interface Strategy {
-  id: string;
-  name: string;
-  description: string;
-  strategy_json: any;
-  created_at: string;
-  updated_at: string;
-}
-
-interface EquityPoint {
-  date: string;
-  equity: number;
-}
-
-interface Backtest {
-  id: string;
-  strategy_id: string;
-  setting_id: string;
-  setting_name: string;
-  start_date: string;
-  end_date: string;
-  initial_capital: number;
-  equity_curve: EquityPoint[];
-  metrics: {
-    total_return: number;
-    cagr: number;
-    max_drawdown: number;
-    sharpe: number;
-  };
-  created_at: string;
-}
-
-// [수정됨] 실제 API 응답 구조에 맞춰 인터페이스 변경
-interface CommunityPost {
-  id: string;
-  title: string;
-  content: string;
-  author_username: string;
-  created_at: string;
-  strategy?: Strategy;           // 중첩된 전략 객체
-  last_backtest?: Backtest;      // 중첩된 백테스트 객체
-}
+import type { StrategyConfig } from "./StrategyBlocklyEditor";
+import type { Backtest, BacktestSetting, CommunityPost, Strategy } from "./types";
+import EquityChart from "./components/EquityChart";
+import { Modal, Pagination } from "./components/Shared";
+import StrategyBuilder from "./pages/StrategyBuilder";
+import Onboarding from "./pages/Onboarding";
 
 // -------------------- Constants --------------------
 
@@ -73,131 +19,6 @@ const formatDate = (s: string) => new Date(s).toLocaleDateString('ko-KR', { year
 const formatPct = (n: number) => n ? `${(n * 100).toFixed(2)}%` : "0.00%";
 const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-// -------------------- Components --------------------
-
-const EquityChart = ({
-  data,
-  comparison,
-  height = 240
-}: {
-  data: EquityPoint[];
-  comparison?: { label: string; data: EquityPoint[] };
-  height?: number;
-}) => {
-  if (!data || data.length === 0) {
-    return <div className="equity-chart" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', background: '#fafafa', borderRadius: 6, border: '1px dashed #eaeaea' }}>데이터 없음</div>;
-  }
-
-  const mainData = data.map(d => d.equity);
-  const compData = comparison ? comparison.data.map(d => d.equity) : [];
-  const allValues = [...mainData, ...compData];
-
-  const minVal = Math.min(...allValues) * 0.98;
-  const maxVal = Math.max(...allValues) * 1.02;
-  const range = maxVal - minVal || 1;
-
-  let peak = -Infinity;
-  const mddSeries = data.map(d => {
-    if (d.equity > peak) peak = d.equity;
-    return (d.equity - peak) / peak;
-  });
-  const minMdd = Math.min(...mddSeries);
-  const mddRange = Math.abs(minMdd) || 0.1;
-
-  const padding = { top: 20, bottom: 30, left: 50, right: 20 };
-  const svgW = 1000;
-  const svgH = height;
-  const graphW = svgW - padding.left - padding.right;
-  const graphH = svgH - padding.top - padding.bottom;
-
-  const getPoints = (series: number[]) => {
-    if (series.length === 0) return "";
-    return series.map((val, i) => {
-      const x = padding.left + (i / (series.length - 1)) * graphW;
-      const y = padding.top + graphH - ((val - minVal) / range) * graphH;
-      return `${x},${y}`;
-    }).join(" ");
-  };
-
-  const getMddPoints = () => {
-    if (mddSeries.length === 0) return "";
-    return mddSeries.map((val, i) => {
-      const x = padding.left + (i / (mddSeries.length - 1)) * graphW;
-      const y = padding.top + graphH - (Math.abs(val) / mddRange) * (graphH * 0.25);
-      return `${x},${y}`;
-    }).join(" ");
-  };
-
-  const yTicks = [0, 1, 2, 3].map(i => {
-    const val = minVal + (range * (i / 3));
-    const y = padding.top + graphH - ((val - minVal) / range) * graphH;
-    return { y, val };
-  });
-
-  const xTicks = [
-    { x: padding.left, label: formatDate(data[0].date) },
-    { x: padding.left + graphW / 2, label: formatDate(data[Math.floor(data.length / 2)].date) },
-    { x: padding.left + graphW, label: formatDate(data[data.length - 1].date) }
-  ];
-
-  return (
-    <div>
-      <div className="equity-chart" style={{ height }}>
-        <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" className="chart-svg">
-          {yTicks.map((tick, i) => (
-            <g key={i}>
-              <line x1={padding.left} y1={tick.y} x2={svgW - padding.right} y2={tick.y} className="chart-grid" />
-              <text x={padding.left - 10} y={tick.y + 4} textAnchor="end" className="chart-axis-text">{formatNum(tick.val)}</text>
-            </g>
-          ))}
-          {xTicks.map((tick, i) => (
-            <text key={i} x={tick.x} y={svgH - 5} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} className="chart-axis-text">{tick.label}</text>
-          ))}
-          {comparison && (
-            <polyline points={getPoints(compData)} fill="none" stroke="#dc2626" strokeWidth="2" strokeDasharray="4,2" vectorEffect="non-scaling-stroke" opacity={0.5} />
-          )}
-          <polyline points={getPoints(mainData)} fill="none" stroke="#2563eb" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          <polyline points={getMddPoints()} fill="none" stroke="#ef4444" strokeWidth="1" vectorEffect="non-scaling-stroke" opacity={0.8} />
-        </svg>
-      </div>
-      <div className="chart-legend-html">
-        <div className="legend-item"><div className="legend-dot" style={{ background: "#2563eb" }}></div><span>Equity</span></div>
-        <div className="legend-item"><div className="legend-dot" style={{ background: "#ef4444" }}></div><span>Drawdown</span></div>
-        {comparison && <div className="legend-item"><div className="legend-dot" style={{ background: "#dc2626", opacity: 0.5 }}></div><span style={{ color: "#dc2626" }}>{comparison.label}</span></div>}
-      </div>
-    </div>
-  );
-};
-
-const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
-  <div className="modal__backdrop" onClick={onClose}>
-    <div className="modal__content" onClick={e => e.stopPropagation()}>
-      <div className="modal__header">
-        <span>{title}</span>
-        <button className="btn--ghost" onClick={onClose} style={{ fontSize: '1.25rem' }}>&times;</button>
-      </div>
-      <div className="modal__body">{children}</div>
-    </div>
-  </div>
-);
-
-const Pagination = ({ current, total, limit, onChange }: { current: number, total: number, limit: number, onChange: (p: number) => void }) => {
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
-  if (totalPages <= 1) return null;
-  return (
-    <div className="pagination">
-      <button className="btn--icon" disabled={current === 1} onClick={() => onChange(current - 1)}>‹</button>
-      {pages.map(p => (
-        <button key={p} className={`page-num ${p === current ? 'active' : ''}`} onClick={() => onChange(p)}>
-          {p}
-        </button>
-      ))}
-      <button className="btn--icon" disabled={current === totalPages} onClick={() => onChange(current + 1)}>›</button>
-    </div>
-  );
-};
-
 // -------------------- Main App --------------------
 
 export default function App() {
@@ -206,25 +27,20 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [loading, setLoading] = useState(false);
 
+  // Global State
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [settings, setSettings] = useState<BacktestSetting[]>([]);
   const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
 
+  // Dashboard State
   const [slideIndex, setSlideIndex] = useState(0);
   const [dashboardFilter, setDashboardFilter] = useState<'return' | 'latest'>('return');
 
-  const [bStratId, setBStratId] = useState(NEW_STRAT_ID);
-  const [bName, setBName] = useState("");
-  const [bDesc, setBDesc] = useState("");
-  const [bConfig, setBConfig] = useState<StrategyConfig>(DEFAULT_STRATEGY_CONFIG);
-  const [bSettingId, setBSettingId] = useState("");
-  const [bResult, setBResult] = useState<Backtest | null>(null);
-
+  // Comparison & List State
   const [stratPage, setStratPage] = useState(1);
   const [btPage, setBtPage] = useState(1);
   const [stPage, setStPage] = useState(1);
-
   const [btFilter, setBtFilter] = useState("ALL");
 
   const [compareStratIds, setCompareStratIds] = useState<string[]>([]);
@@ -238,6 +54,7 @@ export default function App() {
   const [settingModal, setSettingModal] = useState(false);
   const [writeModal, setWriteModal] = useState(false);
 
+  // Forms
   const [settingForm, setSettingForm] = useState<Partial<BacktestSetting>>({});
   const [postForm, setPostForm] = useState({ title: '', content: '', strategyId: '' });
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -282,15 +99,14 @@ export default function App() {
       setSettings(st.items || []);
       setBacktests(b.items || []);
       setPosts(p.items || []);
-      if (st.items && st.items.length > 0 && !bSettingId) {
-        setBSettingId(st.items[0].id);
+      if (st.items && st.items.length > 0 && !strategyCompareSettingId) {
         setStrategyCompareSettingId(st.items[0].id);
       }
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [token, api, bSettingId]);
+  }, [token, api, strategyCompareSettingId]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { if (token) loadData(); }, [token]);
 
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -312,26 +128,16 @@ export default function App() {
     } catch { Swal.fire("오류", "네트워크 오류가 발생했습니다.", "error"); }
   };
 
-  const loadStratToBuilder = (id: string) => {
-    setBStratId(id);
-    if (id === NEW_STRAT_ID) {
-      setBName(""); setBDesc(""); setBConfig(DEFAULT_STRATEGY_CONFIG); setBResult(null);
-    } else {
-      const s = strategies.find(x => x.id === id);
-      if (s) { setBName(s.name); setBDesc(s.description); setBConfig(normalizeStrategyConfig(s.strategy_json)); setBResult(null); }
-    }
-  };
-
-  const saveStrategy = async () => {
-    if (!bName) return Swal.fire("알림", "전략 이름을 입력해주세요.", "warning");
-    const method = bStratId === NEW_STRAT_ID ? "POST" : "PUT";
-    const url = bStratId === NEW_STRAT_ID ? "/strategies" : `/strategies/${bStratId}`;
-    const res = await api(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: bName, description: bDesc, strategy_json: bConfig }) });
+  const saveStrategy = async (id: string, name: string, desc: string, config: StrategyConfig) => {
+    if (!name) return Swal.fire("알림", "전략 이름을 입력해주세요.", "warning");
+    const method = id === NEW_STRAT_ID ? "POST" : "PUT";
+    const url = id === NEW_STRAT_ID ? "/strategies" : `/strategies/${id}`;
+    const res = await api(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, description: desc, strategy_json: config }) });
     if (res.ok) {
       const d = await res.json();
-      setBStratId(d.id);
       loadData();
       Swal.fire("저장 완료", "전략이 성공적으로 저장되었습니다.", "success");
+      return d.id;
     }
   };
 
@@ -342,23 +148,30 @@ export default function App() {
       if (res.ok) {
         loadData();
         Swal.fire("삭제됨", "전략이 삭제되었습니다.", "success");
-        if (bStratId === id) setBStratId(NEW_STRAT_ID);
       } else {
         Swal.fire("실패", "전략 삭제 중 오류가 발생했습니다.", "error");
       }
     }
   };
 
-  const runBacktest = async () => {
-    if (bStratId === NEW_STRAT_ID) return Swal.fire("알림", "전략을 먼저 저장해주세요.", "warning");
-    if (!bSettingId) return Swal.fire("알림", "백테스트 설정을 선택해주세요.", "warning");
+  const runBacktest = async (stratId: string, settingId: string) => {
+    if (stratId === NEW_STRAT_ID) { Swal.fire("알림", "전략을 먼저 저장해주세요.", "warning"); return null; }
+    if (!settingId) { Swal.fire("알림", "백테스트 설정을 선택해주세요.", "warning"); return null; }
     setLoading(true);
     try {
-      const res = await api("/backtests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategy_id: bStratId, setting_id: bSettingId }) });
-      if (res.ok) { setBResult(await res.json()); loadData(); }
-      else Swal.fire("실패", "백테스트 실행 중 오류가 발생했습니다.", "error");
-    } catch { Swal.fire("오류", "실행 실패", "error"); }
-    setLoading(false);
+      const res = await api("/backtests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategy_id: stratId, setting_id: settingId }) });
+      setLoading(false);
+      if (res.ok) {
+        const result = await res.json();
+        loadData();
+        return result;
+      }
+      else { Swal.fire("실패", "백테스트 실행 중 오류가 발생했습니다.", "error"); return null; }
+    } catch {
+      setLoading(false);
+      Swal.fire("오류", "실행 실패", "error");
+      return null;
+    }
   };
 
   const saveSetting = async () => {
@@ -407,11 +220,6 @@ export default function App() {
     return backtests.reduce((max, curr) => curr.metrics.total_return > max.metrics.total_return ? curr : max, backtests[0]);
   }, [backtests]);
 
-  const maxReturnStrategyName = useMemo(() => {
-    if (!maxReturnBacktest) return "-";
-    return strategies.find(s => s.id === maxReturnBacktest.strategy_id)?.name || "Unknown";
-  }, [maxReturnBacktest, strategies]);
-
   const dashboardCards = useMemo(() => {
     const sorted = [...backtests];
     if (dashboardFilter === 'return') {
@@ -424,18 +232,10 @@ export default function App() {
 
   const strategyCompareData = useMemo(() => {
     if (compareStratIds.length !== 2 || !strategyCompareSettingId) return null;
-
     const s1 = strategies.find(s => s.id === compareStratIds[0]);
     const s2 = strategies.find(s => s.id === compareStratIds[1]);
-
-    const bt1 = backtests
-      .filter(b => b.strategy_id === compareStratIds[0] && b.setting_id === strategyCompareSettingId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-
-    const bt2 = backtests
-      .filter(b => b.strategy_id === compareStratIds[1] && b.setting_id === strategyCompareSettingId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-
+    const bt1 = backtests.filter(b => b.strategy_id === compareStratIds[0] && b.setting_id === strategyCompareSettingId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    const bt2 = backtests.filter(b => b.strategy_id === compareStratIds[1] && b.setting_id === strategyCompareSettingId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
     return { s1, s2, bt1, bt2 };
   }, [compareStratIds, strategyCompareSettingId, strategies, backtests]);
 
@@ -473,7 +273,12 @@ export default function App() {
             <div className="brand" onClick={() => setPage('dashboard')}>
               <div className="brand-logo">Q</div> QuantiMizer
             </div>
-            <button className="logout-button" onClick={() => { setToken(null); localStorage.removeItem(TOKEN_KEY); }}>로그아웃</button>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button className="logout-button" onClick={() => setPage('onboarding')} style={{ border: 'none', background: 'var(--bg-subtle)', fontWeight: 600 }}>
+                💡 처음이신가요?
+              </button>
+              <button className="logout-button" onClick={() => { setToken(null); localStorage.removeItem(TOKEN_KEY); }}>로그아웃</button>
+            </div>
           </div>
           <nav className="nav-tabs">
             {[
@@ -493,6 +298,10 @@ export default function App() {
       </header>
 
       <main className="main-content">
+        {page === 'onboarding' && (
+          <Onboarding onStart={() => setPage('builder')} />
+        )}
+
         {page === 'dashboard' && (
           <>
             <div className="kpi-grid">
@@ -512,7 +321,7 @@ export default function App() {
                   {formatPct(Math.max(...backtests.map(b => b.metrics.total_return), 0))}
                 </div>
                 <div className="kpi__sub">
-                  <span style={{ fontWeight: 600, color: '#000' }}>{maxReturnStrategyName}</span> 전략
+                  <span style={{ fontWeight: 600, color: '#000' }}>{maxReturnBacktest ? strategies.find(s => s.id === maxReturnBacktest.strategy_id)?.name : '-'}</span> 전략
                 </div>
               </div>
             </div>
@@ -567,87 +376,13 @@ export default function App() {
         )}
 
         {page === 'builder' && (
-          <div className="builder-container">
-            <div className="builder-top-controls card">
-              <div className="control-group">
-                <div className="control-item" style={{ flex: 1 }}>
-                  <label>전략 선택</label>
-                  <select className="select" value={bStratId} onChange={e => loadStratToBuilder(e.target.value)}>
-                    <option value={NEW_STRAT_ID}>+ 새 전략 작성</option>
-                    {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="control-group">
-                <div className="control-item" style={{ flex: 1 }}>
-                  <label>전략 이름</label>
-                  <input className="input" placeholder="전략 이름 입력" value={bName} onChange={e => setBName(e.target.value)} />
-                </div>
-                <div className="control-item">
-                  <label>&nbsp;</label>
-                  <button className="btn btn--secondary" onClick={saveStrategy}>전략 저장</button>
-                </div>
-              </div>
-
-              <div className="control-divider" />
-
-              <div className="control-group">
-                <div className="control-item" style={{ flex: 2 }}>
-                  <label>백테스트 설정</label>
-                  <select className="select" value={bSettingId} onChange={e => setBSettingId(e.target.value)}>
-                    <option value="">설정 선택...</option>
-                    {settings.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div className="control-item">
-                  <label>&nbsp;</label>
-                  <button className="btn btn--primary" onClick={runBacktest} disabled={loading}>
-                    {loading ? '실행 중...' : '백테스트 실행'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="builder-split-view">
-              <div className="builder-editor-pane">
-                <StrategyBlocklyEditor value={bConfig} onChange={setBConfig} />
-              </div>
-              <div className="builder-result-pane card">
-                {bResult ? (
-                  <>
-                    <div className="result-header">
-                      <span className="result-title">실행 결과</span>
-                      <span className={bResult.metrics.total_return > 0 ? 'text-success' : 'text-danger'} style={{ fontSize: '1.2rem', fontWeight: 700 }}>
-                        {formatPct(bResult.metrics.total_return)}
-                      </span>
-                    </div>
-                    <div className="result-chart">
-                      <EquityChart data={bResult.equity_curve} height={200} />
-                    </div>
-                    <div className="metric-grid-compact">
-                      <div className="metric-item">
-                        <span className="metric-label">CAGR</span>
-                        <span className="metric-value">{formatPct(bResult.metrics.cagr)}</span>
-                      </div>
-                      <div className="metric-item">
-                        <span className="metric-label">MDD</span>
-                        <span className="metric-value text-danger">{formatPct(bResult.metrics.max_drawdown)}</span>
-                      </div>
-                      <div className="metric-item">
-                        <span className="metric-label">Sharpe</span>
-                        <span className="metric-value">{bResult.metrics.sharpe.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="empty-state-small">
-                    백테스트 실행 결과가 여기에 표시됩니다.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <StrategyBuilder
+            strategies={strategies}
+            settings={settings}
+            onSave={saveStrategy}
+            onRunBacktest={runBacktest}
+            loading={loading}
+          />
         )}
 
         {page === 'settings' && (
@@ -711,7 +446,9 @@ export default function App() {
                         <button className="btn btn--danger" onClick={() => deleteStrategy(s.id)}>삭제</button>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button className="btn btn--secondary" onClick={() => { setDetailStrat(s); setSelectedDetailBts([]); }}>상세 정보</button>
-                          <button className="btn btn--primary" onClick={() => { loadStratToBuilder(s.id); setPage('builder'); }}>수정</button>
+                          <button className="btn btn--primary" onClick={() => {
+                            setPage('builder');
+                          }}>수정 (빌더에서 선택)</button>
                         </div>
                       </div>
                     </div>
@@ -778,7 +515,6 @@ export default function App() {
             </div>
             <div className="strategy-grid">
               {posts.map(p => {
-                // [수정됨] 서버 응답의 중첩 객체를 직접 사용하여 렌더링
                 const stratName = p.strategy?.name || "Unknown Strategy";
                 const metrics = p.last_backtest?.metrics || { total_return: 0, max_drawdown: 0, cagr: 0 };
                 const stratId = p.strategy?.id;
@@ -924,7 +660,6 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
-              <Pagination current={stPage} total={backtests.filter(b => b.strategy_id === detailStrat.id).length} limit={5} onChange={p => console.log(p)} />
             </div>
           </div>
         </Modal>
@@ -957,18 +692,6 @@ export default function App() {
                     <td>{formatPct(compareModal.dataB.metrics.max_drawdown)}</td>
                     <td>{formatPct(compareModal.dataA.metrics.max_drawdown - compareModal.dataB.metrics.max_drawdown)}</td>
                   </tr>
-                  <tr>
-                    <td>CAGR</td>
-                    <td>{formatPct(compareModal.dataA.metrics.cagr)}</td>
-                    <td>{formatPct(compareModal.dataB.metrics.cagr)}</td>
-                    <td>{formatPct(compareModal.dataA.metrics.cagr - compareModal.dataB.metrics.cagr)}</td>
-                  </tr>
-                  <tr>
-                    <td>Sharpe</td>
-                    <td>{compareModal.dataA.metrics.sharpe.toFixed(2)}</td>
-                    <td>{compareModal.dataB.metrics.sharpe.toFixed(2)}</td>
-                    <td>{(compareModal.dataA.metrics.sharpe - compareModal.dataB.metrics.sharpe).toFixed(2)}</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -990,7 +713,6 @@ export default function App() {
               <div className="metric-box"><label>CAGR</label><span>{formatPct(resultModal.metrics.cagr)}</span></div>
               <div className="metric-box"><label>MDD</label><span className="text-danger">{formatPct(resultModal.metrics.max_drawdown)}</span></div>
               <div className="metric-box"><label>Sharpe</label><span>{resultModal.metrics.sharpe.toFixed(2)}</span></div>
-              <div className="metric-box"><label>Win Rate</label><span>65.00%</span></div>
             </div>
           </div>
         </Modal>

@@ -55,7 +55,6 @@ body {
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  /* Increased z-index to 900 to appear above Blockly toolbox (usually 70) */
   z-index: 900;
 }
 
@@ -360,7 +359,6 @@ body {
   background: var(--bg-subtle);
   overflow: hidden;
   height: 600px;
-  /* Reduced height */
 }
 
 .builder-result-pane {
@@ -393,7 +391,6 @@ body {
   margin-top: 24px;
 }
 
-/* New: 4-column grid for result report */
 .metric-grid-results {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -409,7 +406,6 @@ body {
   border: 1px solid var(--border);
 }
 
-/* Box style for the detailed report metrics */
 .metric-box {
   background: var(--bg-subtle);
   padding: 16px;
@@ -522,7 +518,6 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 24px;
   position: relative;
-  /* For floating bar containment if needed */
 }
 
 .strategy-card-actions {
@@ -729,7 +724,6 @@ body {
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(2px);
-  /* Ensure modal is above the header which is 900 */
   z-index: 2000;
   display: flex;
   align-items: center;
@@ -843,7 +837,7 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Comparison Features */
+/* Compare Feature */
 .compare-floating-bar {
   position: fixed;
   bottom: 24px;
@@ -980,4 +974,103 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* Onboarding */
+.onboarding-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  text-align: center;
+  padding: 40px 0;
+}
+
+.onboarding-hero {
+  margin-bottom: 80px;
+  max-width: 800px;
+}
+
+.onboarding-title {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 24px;
+  letter-spacing: -0.02em;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #000 0%, #666 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.onboarding-subtitle {
+  font-size: 20px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 40px;
+}
+
+.btn-onboarding-cta {
+  background: var(--primary);
+  color: var(--primary-fg);
+  padding: 16px 32px;
+  border-radius: 32px;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.btn-onboarding-cta:hover {
+  transform: translateY(-2px);
+  background: var(--primary-hover);
+}
+
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+  max-width: 1000px;
+  width: 100%;
+  margin-bottom: 80px;
+}
+
+.feature-card {
+  text-align: left;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 32px;
+  border-radius: 12px;
+  transition: box-shadow 0.2s;
+}
+
+.feature-card:hover {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.feature-icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.feature-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+}
+
+.feature-card p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.onboarding-footer {
+  color: var(--text-muted);
+  font-size: 13px;
 }
