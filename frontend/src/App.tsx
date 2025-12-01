@@ -25,6 +25,7 @@ const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "com
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
   const [username, setUsername] = useState<string>("");
+  const [tokenPayload, setTokenPayload] = useState<any>(null); // 토큰 전체 데이터 저장용
 
   // page 초기값: 토큰이 있으면 대시보드, 없으면 온보딩
   const [page, setPage] = useState(token ? "dashboard" : "onboarding");
@@ -36,8 +37,13 @@ export default function App() {
   const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
 
-  // Admin Check
-  const isAdmin = useMemo(() => username === 'admin@admin.com', [username]);
+  // Admin Check Logic (Updated)
+  const isAdmin = useMemo(() => {
+    if (!tokenPayload) return false;
+    // 토큰의 sub, email, username 필드 중 하나라도 admin@admin.com 이면 관리자로 인정
+    const candidates = [tokenPayload.sub, tokenPayload.email, tokenPayload.username];
+    return candidates.some(val => val === 'admin@admin.com');
+  }, [tokenPayload]);
 
   // Dashboard State
   const [slideIndex, setSlideIndex] = useState(0);
@@ -70,24 +76,28 @@ export default function App() {
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
+        // 디버깅용 로그: F12 콘솔에서 토큰 내용을 확인 가능
+        console.log("Token Payload:", payload); 
+        
+        setTokenPayload(payload);
         setUsername(payload.sub || payload.username || "");
       } catch (e) {
         console.error("Invalid token format");
+        setToken(null);
       }
     } else {
       setUsername("");
+      setTokenPayload(null);
     }
   }, [token]);
 
   const api = useCallback(async (url: string, opts: any = {}) => {
     const headers: any = { Authorization: `Bearer ${token}` };
     
-    // Header merge logic: respect provided headers
     if (opts.headers) {
         Object.assign(headers, opts.headers);
     }
     
-    // Special handling for FormData: remove Content-Type to let browser set boundary
     if (opts.body instanceof FormData) {
         delete headers['Content-Type'];
     }
@@ -107,7 +117,6 @@ export default function App() {
     if (!token) return;
     setLoading(true);
     try {
-      // Admin requests are separate
       const [s, st, b, p] = await Promise.all([
         api("/strategies?limit=100").then(r => r.json()),
         api("/backtest-settings?limit=100").then(r => r.json()),
