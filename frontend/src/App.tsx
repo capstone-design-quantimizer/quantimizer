@@ -8,6 +8,7 @@ import EquityChart from "./components/EquityChart";
 import { Modal, Pagination } from "./components/Shared";
 import StrategyBuilder from "./pages/StrategyBuilder";
 import Onboarding from "./pages/Onboarding";
+import AdminTuner from "./pages/AdminTuner";
 
 // -------------------- Constants --------------------
 
@@ -34,6 +35,9 @@ export default function App() {
   const [settings, setSettings] = useState<BacktestSetting[]>([]);
   const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+
+  // Admin Check
+  const isAdmin = useMemo(() => username === 'admin@admin.com', [username]);
 
   // Dashboard State
   const [slideIndex, setSlideIndex] = useState(0);
@@ -76,12 +80,23 @@ export default function App() {
   }, [token]);
 
   const api = useCallback(async (url: string, opts: any = {}) => {
-    const headers = { ...opts.headers, Authorization: `Bearer ${token}` };
+    const headers: any = { Authorization: `Bearer ${token}` };
+    
+    // Header merge logic: respect provided headers
+    if (opts.headers) {
+        Object.assign(headers, opts.headers);
+    }
+    
+    // Special handling for FormData: remove Content-Type to let browser set boundary
+    if (opts.body instanceof FormData) {
+        delete headers['Content-Type'];
+    }
+
     const res = await fetch(API_BASE + url, { ...opts, headers });
     if (res.status === 401) {
       setToken(null);
       localStorage.removeItem(TOKEN_KEY);
-      setPage("onboarding"); // 토큰 만료 시 온보딩으로 이동
+      setPage("onboarding"); 
       Swal.fire("인증 만료", "다시 로그인해주세요.", "warning");
       throw new Error("Auth");
     }
@@ -92,6 +107,7 @@ export default function App() {
     if (!token) return;
     setLoading(true);
     try {
+      // Admin requests are separate
       const [s, st, b, p] = await Promise.all([
         api("/strategies?limit=100").then(r => r.json()),
         api("/backtest-settings?limit=100").then(r => r.json()),
@@ -126,7 +142,7 @@ export default function App() {
           const d = await res.json();
           setToken(d.access_token);
           localStorage.setItem(TOKEN_KEY, d.access_token);
-          setPage("dashboard"); // 로그인 성공 시 대시보드로 이동
+          setPage("dashboard"); 
         }
       } else Swal.fire("실패", "로그인 또는 가입 정보를 확인하세요.", "error");
     } catch { Swal.fire("오류", "네트워크 오류가 발생했습니다.", "error"); }
@@ -234,7 +250,6 @@ export default function App() {
     return sorted.slice(0, 3);
   }, [backtests, dashboardFilter]);
 
-  // Top 3 Posts for Community Page
   const topCommunityPosts = useMemo(() => {
     return [...posts]
       .filter(p => p.last_backtest)
@@ -299,7 +314,7 @@ export default function App() {
         <div className="top-header__inner">
           <div className="header-top-row">
             <div className="brand" onClick={() => setPage('dashboard')}>
-              <div className="brand-logo">Q</div> QuantiMizer
+              <div className="brand-logo">Q</div> QuantiMizer {isAdmin && <span className="badge" style={{marginLeft: 8, background: 'var(--danger)', color: 'white'}}>ADMIN</span>}
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <button className="logout-button" onClick={() => setPage('onboarding')} style={{ border: 'none', background: 'var(--bg-subtle)', fontWeight: 600 }}>
@@ -308,7 +323,7 @@ export default function App() {
               <button className="logout-button" onClick={() => {
                 setToken(null);
                 localStorage.removeItem(TOKEN_KEY);
-                setPage("onboarding"); // 로그아웃 시 온보딩으로 이동
+                setPage("onboarding"); 
               }}>로그아웃</button>
             </div>
           </div>
@@ -325,6 +340,17 @@ export default function App() {
                 {tab.label}
               </button>
             ))}
+            
+            {/* Admin Tab */}
+            {isAdmin && (
+               <button 
+                 className={`nav-tab ${page === 'admin' ? 'nav-tab--active' : ''}`} 
+                 onClick={() => setPage('admin')}
+                 style={{ color: page === 'admin' ? 'var(--danger)' : 'var(--text-secondary)' }}
+               >
+                 ⚙️ 관리자
+               </button>
+            )}
           </nav>
         </div>
       </header>
@@ -646,6 +672,12 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Admin Page Routing */}
+        {page === 'admin' && isAdmin && (
+          <AdminTuner api={api} />
+        )}
+
       </main>
 
       {isStrategyCompareModalOpen && (
