@@ -25,7 +25,7 @@ const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "com
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
   const [username, setUsername] = useState<string>("");
-  const [tokenPayload, setTokenPayload] = useState<any>(null); // 토큰 전체 데이터 저장용
+  const [tokenPayload, setTokenPayload] = useState<any>(null); // 토큰 데이터 저장
 
   // page 초기값: 토큰이 있으면 대시보드, 없으면 온보딩
   const [page, setPage] = useState(token ? "dashboard" : "onboarding");
@@ -37,13 +37,51 @@ export default function App() {
   const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
 
-  // Admin Check Logic (Updated)
+  // ----------------------------------------------------
+  // [수정] 관리자 권한 체크 로직 강화
+  // ----------------------------------------------------
   const isAdmin = useMemo(() => {
     if (!tokenPayload) return false;
-    // 토큰의 sub, email, username 필드 중 하나라도 admin@admin.com 이면 관리자로 인정
-    const candidates = [tokenPayload.sub, tokenPayload.email, tokenPayload.username];
-    return candidates.some(val => val === 'admin@admin.com');
-  }, [tokenPayload]);
+    const adminEmail = "admin@admin.com";
+    
+    // 토큰 내의 가능한 모든 필드에서 이메일 확인 (대소문자 무시)
+    const candidates = [
+        tokenPayload.sub,
+        tokenPayload.email,
+        tokenPayload.username,
+        tokenPayload.preferred_username,
+        username // state에 저장된 username도 확인
+    ];
+
+    return candidates.some(val => val && String(val).toLowerCase() === adminEmail);
+  }, [tokenPayload, username]);
+
+  useEffect(() => {
+    if (token) {
+      try {
+        // JWT 디코딩 (한글 깨짐 방지 로직 포함)
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        
+        const payload = JSON.parse(jsonPayload);
+        console.log("Decoded Token Payload:", payload); // 디버깅용 로그
+
+        setTokenPayload(payload);
+        // 사용자명 표시를 위한 우선순위 설정
+        setUsername(payload.username || payload.sub || payload.email || "User");
+      } catch (e) {
+        console.error("Token decode failed:", e);
+        setToken(null);
+        localStorage.removeItem(TOKEN_KEY);
+      }
+    } else {
+      setUsername("");
+      setTokenPayload(null);
+    }
+  }, [token]);
 
   // Dashboard State
   const [slideIndex, setSlideIndex] = useState(0);
@@ -71,25 +109,6 @@ export default function App() {
   const [postForm, setPostForm] = useState({ title: '', content: '', strategyId: '' });
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', username: '' });
-
-  useEffect(() => {
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        // 디버깅용 로그: F12 콘솔에서 토큰 내용을 확인 가능
-        console.log("Token Payload:", payload); 
-        
-        setTokenPayload(payload);
-        setUsername(payload.sub || payload.username || "");
-      } catch (e) {
-        console.error("Invalid token format");
-        setToken(null);
-      }
-    } else {
-      setUsername("");
-      setTokenPayload(null);
-    }
-  }, [token]);
 
   const api = useCallback(async (url: string, opts: any = {}) => {
     const headers: any = { Authorization: `Bearer ${token}` };
@@ -350,7 +369,7 @@ export default function App() {
               </button>
             ))}
             
-            {/* Admin Tab */}
+            {/* Admin Tab Visibility Controlled by isAdmin */}
             {isAdmin && (
                <button 
                  className={`nav-tab ${page === 'admin' ? 'nav-tab--active' : ''}`} 
