@@ -160,6 +160,31 @@ def create_workload(db: Session, name: str, description: str, count: int) -> Wor
     return workload
 
 
+def _get_pg_stats(db: Session) -> Dict[str, Any]:
+    query = text("""
+        SELECT 
+            coalesce(sum(blks_hit), 0) as blks_hit, 
+            coalesce(sum(blks_read), 0) as blks_read, 
+            coalesce(sum(tup_returned), 0) as tup_returned, 
+            coalesce(sum(tup_fetched), 0) as tup_fetched,
+            coalesce(sum(xact_commit), 0) as xact_commit,
+            coalesce(sum(xact_rollback), 0) as xact_rollback
+        FROM pg_stat_database 
+        WHERE datname = current_database()
+    """)
+    row = db.execute(query).fetchone()
+    if not row:
+        return {}
+    return {
+        "blks_hit": row[0],
+        "blks_read": row[1],
+        "tup_returned": row[2],
+        "tup_fetched": row[3],
+        "xact_commit": row[4],
+        "xact_rollback": row[5]
+    }
+
+
 def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
     workload = db.query(Workload).filter(Workload.id == workload_id).first()
     if not workload:
@@ -168,6 +193,9 @@ def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
     settings_query = text("SELECT name, setting FROM pg_settings")
     current_config = {row[0]: row[1] for row in db.execute(settings_query).fetchall()}
 
+    # Measure Stats Before
+    pre_stats = _get_pg_stats(db)
+    
     start_time = time.perf_counter()
 
     for q in workload.queries:
@@ -177,10 +205,32 @@ def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
     end_time = time.perf_counter()
     duration_ms = (end_time - start_time) * 1000
 
+    post_stats = _get_pg_stats(db)
+
+    metrics = {}
+    if pre_stats and post_stats:
+        delta_hit = post_stats["blks_hit"] - pre_stats["blks_hit"]
+        delta_read = post_stats["blks_read"] - pre_stats["blks_read"]
+        delta_returned = post_stats["tup_returned"] - pre_stats["tup_returned"]
+        delta_fetched = post_stats["tup_fetched"] - pre_stats["tup_fetched"]
+        
+        total_blocks = delta_hit + delta_read
+        buffer_hit_ratio = (delta_hit / total_blocks * 100) if total_blocks > 0 else 100.0
+        
+        metrics = {
+            "buffer_hit_ratio": float(f"{buffer_hit_ratio:.2f}"),
+            "blocks_read": int(delta_read),
+            "blocks_hit": int(delta_hit),
+            "tuples_returned": int(delta_returned),
+            "tuples_fetched": int(delta_fetched),
+            "transactions": int(post_stats["xact_commit"] - pre_stats["xact_commit"])
+        }
+
     execution = WorkloadExecution(
         workload_id=workload.id,
         execution_time_ms=duration_ms,
         db_config_snapshot=current_config,
+        extended_metrics=metrics
     )
     db.add(execution)
     db.commit()

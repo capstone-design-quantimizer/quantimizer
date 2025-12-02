@@ -1,21 +1,62 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from datetime import datetime, date, time
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import json
 import uuid
 
 from app.db.session import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, create_access_token, verify_password
 from app.models.user import User
 from app.models.admin import Workload, WorkloadExecution
-from app.schemas.admin import DBTuneResult, WorkloadCreate, WorkloadRead, WorkloadExecutionRead
+from app.models.backtest import BacktestResult
+from app.models.strategy import Strategy
+from app.models.community import CommunityPost
+from app.schemas.admin import (
+    DBTuneResult, 
+    WorkloadCreate, 
+    WorkloadRead, 
+    WorkloadExecutionRead, 
+    AdminDashboardStats,
+    AdminLoginRequest,
+    AdminLoginResponse,
+    UserSummary
+)
 from app.services.admin_service import apply_db_configuration, create_workload, execute_workload
+from app.services.users import get_user_by_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+ADMIN_EMAIL = "admin@admin.com"
+
 def check_admin(user: User):
-    if user.email != "admin@admin.com":
+    if user.email != ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Admin access required")
+
+@router.post("/auth/login", response_model=AdminLoginResponse)
+def admin_login(
+    login_data: AdminLoginRequest,
+    db: Session = Depends(get_db)
+):
+    user = get_user_by_email(db, login_data.email)
+    if not user or user.email != ADMIN_EMAIL:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin credentials",
+        )
+    if not verify_password(login_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+        )
+    
+    access_token = create_access_token(
+        data={"sub": user.email, "role": "admin"}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# --- DB Tuning & Workloads ---
 
 @router.post("/tune", response_model=DBTuneResult)
 async def tune_database(
@@ -83,3 +124,52 @@ def list_executions(
     check_admin(current_user)
     execs = db.query(WorkloadExecution).order_by(WorkloadExecution.created_at.desc()).all()
     return execs
+
+
+@router.get("/dashboard/stats", response_model=AdminDashboardStats)
+def get_dashboard_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_admin(current_user)
+    
+    total_users = db.query(User).count()
+    total_backtests = db.query(BacktestResult).count()
+    total_strategies = db.query(Strategy).count()
+    
+    today_start = datetime.combine(date.today(), time.min)
+    posts_today = db.query(CommunityPost).filter(CommunityPost.created_at >= today_start).count()
+    posts_total = db.query(CommunityPost).count()
+    
+    return AdminDashboardStats(
+        total_users=total_users,
+        total_backtests=total_backtests,
+        total_strategies=total_strategies,
+        community_posts_today=posts_today,
+        community_posts_total=posts_total
+    )
+
+@router.get("/users", response_model=List[UserSummary])
+def list_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_admin(current_user)
+    
+    users = db.query(User).all()
+    result = []
+    
+    for u in users:
+        s_count = db.query(Strategy).filter(Strategy.owner_id == u.id).count()
+        b_count = db.query(BacktestResult).join(Strategy).filter(Strategy.owner_id == u.id).count()
+        
+        result.append(UserSummary(
+            id=u.id,
+            email=u.email,
+            username=u.username,
+            joined_at=u.created_at,
+            strategy_count=s_count,
+            backtest_count=b_count
+        ))
+    
+    return result

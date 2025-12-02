@@ -24,8 +24,13 @@ class WorkloadExecution(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workload_id = Column(UUID(as_uuid=True), ForeignKey("workloads.id"), nullable=False)
+    
     execution_time_ms = Column(Float, nullable=False)
+    
     db_config_snapshot = Column(JSONB, nullable=False)
+    
+    extended_metrics = Column(JSONB, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.now)
 
     workload = relationship("Workload", back_populates="executions")
