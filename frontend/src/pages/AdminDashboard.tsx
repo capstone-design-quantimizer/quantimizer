@@ -41,7 +41,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
 
     const [workloads, setWorkloads] = useState<Workload[]>([]);
     const [executions, setExecutions] = useState<WorkloadExecution[]>([]);
-    const [wlForm, setWlForm] = useState({ name: '', description: '', count: 100 });
+    const [wlForm, setWlForm] = useState({ name: '', description: '', count: 100, type: 'MIXED' });
     const [wlLoading, setWlLoading] = useState(false);
     const [selectedWorkloadForQueries, setSelectedWorkloadForQueries] = useState<Workload | null>(null);
 
@@ -153,17 +153,48 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             const res = await api("/admin/workloads", { 
                 method: "POST", 
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(wlForm)
+                body: JSON.stringify({
+                    name: wlForm.name,
+                    description: wlForm.description,
+                    count: wlForm.count,
+                    workload_type: wlForm.type
+                })
             });
             if (res.ok) {
                 Swal.fire("완료", "워크로드가 생성되었습니다.", "success");
-                setWlForm({ name: '', description: '', count: 100 });
+                setWlForm({ name: '', description: '', count: 100, type: 'MIXED' });
                 loadWorkloads();
             }
         } catch {
             Swal.fire("오류", "생성 실패", "error");
         } finally {
             setWlLoading(false);
+        }
+    };
+
+    const handleDeleteWorkload = async (id: string) => {
+        const r = await Swal.fire({
+            title: '워크로드 삭제',
+            text: "정말 삭제하시겠습니까? 관련 실행 이력도 모두 삭제됩니다.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '삭제',
+            cancelButtonText: '취소',
+            confirmButtonColor: '#d33'
+        });
+
+        if (r.isConfirmed) {
+            try {
+                const res = await api(`/admin/workloads/${id}`, { method: "DELETE" });
+                if (res.ok) {
+                    Swal.fire("삭제됨", "워크로드가 삭제되었습니다.", "success");
+                    loadWorkloads();
+                } else {
+                    Swal.fire("실패", "삭제 중 오류가 발생했습니다.", "error");
+                }
+            } catch {
+                Swal.fire("오류", "네트워크 오류", "error");
+            }
         }
     };
 
@@ -381,7 +412,19 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             <div className="card__body form-stack">
                                 <input className="input" value={wlForm.name} onChange={e => setWlForm({...wlForm, name: e.target.value})} placeholder="워크로드 이름" />
                                 <input className="input" value={wlForm.description} onChange={e => setWlForm({...wlForm, description: e.target.value})} placeholder="설명" />
-                                <input className="input" type="number" value={wlForm.count} onChange={e => setWlForm({...wlForm, count: Number(e.target.value)})} placeholder="쿼리 수" />
+                                <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                    <input className="input" type="number" value={wlForm.count} onChange={e => setWlForm({...wlForm, count: Number(e.target.value)})} placeholder="쿼리 수" />
+                                    <select 
+                                        className="select" 
+                                        value={wlForm.type} 
+                                        onChange={e => setWlForm({...wlForm, type: e.target.value})}
+                                    >
+                                        <option value="MIXED">Mixed (Random)</option>
+                                        <option value="FUNDAMENTAL">Fundamental Composite</option>
+                                        <option value="MOMENTUM">Momentum Trend</option>
+                                        <option value="SMALLCAP">High-turnover Small Cap</option>
+                                    </select>
+                                </div>
                                 <button className="btn btn--primary" onClick={handleCreateWorkload} disabled={wlLoading}>생성하기</button>
                             </div>
                         </div>
@@ -399,6 +442,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                                                     <div style={{display:'flex', gap: 4}}>
                                                         <button className="btn btn--secondary btn--sm" onClick={() => handleViewQueries(w.id)}>조회</button>
                                                         <button className="btn btn--secondary btn--sm" onClick={() => handleExecuteWorkload(w.id)}>▶ 실행</button>
+                                                        <button className="btn btn--danger btn--sm" onClick={() => handleDeleteWorkload(w.id)}>삭제</button>
                                                     </div>
                                                 </td>
                                             </tr>

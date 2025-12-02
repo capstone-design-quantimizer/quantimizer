@@ -149,12 +149,9 @@ export default function App() {
       setSettings(st.items || []);
       setBacktests(b.items || []);
       setPosts(p.items || []);
-      if (st.items && st.items.length > 0 && !strategyCompareSettingId) {
-        setStrategyCompareSettingId(st.items[0].id);
-      }
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [token, api, strategyCompareSettingId]);
+  }, [token, api]);
 
   useEffect(() => { 
     if (token && page !== 'admin-dashboard' && page !== 'admin-login') {
@@ -314,6 +311,27 @@ export default function App() {
       .sort((a, b) => (b.last_backtest!.metrics.total_return - a.last_backtest!.metrics.total_return))
       .slice(0, 3);
   }, [posts]);
+
+  const availableCompareSettings = useMemo(() => {
+    if (compareStratIds.length !== 2) return [];
+    
+    const [stratId1, stratId2] = compareStratIds;
+    
+    const settingIds1 = new Set(backtests.filter(b => b.strategy_id === stratId1).map(b => b.setting_id));
+    const settingIds2 = new Set(backtests.filter(b => b.strategy_id === stratId2).map(b => b.setting_id));
+    
+    const commonSettingIds = [...settingIds1].filter(id => settingIds2.has(id));
+    
+    return settings.filter(s => commonSettingIds.includes(s.id));
+  }, [compareStratIds, backtests, settings]);
+
+  useEffect(() => {
+    if (availableCompareSettings.length > 0 && !availableCompareSettings.find(s => s.id === strategyCompareSettingId)) {
+        setStrategyCompareSettingId(availableCompareSettings[0].id);
+    } else if (availableCompareSettings.length === 0) {
+        setStrategyCompareSettingId("");
+    }
+  }, [availableCompareSettings]);
 
   const strategyCompareData = useMemo(() => {
     if (compareStratIds.length !== 2 || !strategyCompareSettingId) return null;
@@ -801,7 +819,11 @@ export default function App() {
             <div className="comparison-controls">
               <label style={{ fontWeight: 600, marginRight: 12 }}>비교할 백테스트 조건:</label>
               <select className="select" style={{ width: 300 }} value={strategyCompareSettingId} onChange={e => setStrategyCompareSettingId(e.target.value)}>
-                {settings.map(s => <option key={s.id} value={s.id}>{s.name} ({s.market})</option>)}
+                {availableCompareSettings.length > 0 ? (
+                    availableCompareSettings.map(s => <option key={s.id} value={s.id}>{s.name} ({s.market})</option>)
+                ) : (
+                    <option value="">공통된 백테스트 내역 없음</option>
+                )}
               </select>
             </div>
 
@@ -856,7 +878,7 @@ export default function App() {
               </>
             ) : (
               <div className="empty-state">
-                <p>선택하신 조건({settings.find(s => s.id === strategyCompareSettingId)?.name})으로 실행된 백테스트 결과가 두 전략 모두에 존재해야 비교가 가능합니다.</p>
+                <p>선택하신 조건으로 실행된 백테스트 결과가 두 전략 모두에 존재해야 비교가 가능합니다.</p>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>각 전략의 수정 화면에서 해당 조건으로 백테스트를 실행해주세요.</p>
               </div>
             )}

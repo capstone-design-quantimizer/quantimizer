@@ -133,39 +133,88 @@ def restore_db_configuration(db: Session, log_id: str, applied_by: str) -> Dict[
 
     return result
 
-def _generate_random_workload_queries(count: int) -> List[Dict[str, Any]]:
+def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List[Dict[str, Any]]:
     queries = []
     factor_keys = list(FACTOR_COLUMN_MAP.keys())
     markets = ["KOSPI", "KOSDAQ", "ALL"]
-
     base_date = date(2020, 1, 1)
 
     for _ in range(count):
-        market = random.choice(markets)
-        min_cap = random.choice([0, 10000000000, 50000000000])
         start_delta = random.randint(0, 365 * 2)
         duration = random.randint(30, 365)
         start_date = base_date + timedelta(days=start_delta)
         end_date = start_date + timedelta(days=duration)
 
-        universe = UniverseSpec(market=market, min_market_cap=min_cap, excludes=[])
+        universe = None
+        strategy = None
 
-        num_factors = random.randint(1, 5)
-        selected_factors = random.sample(factor_keys, num_factors)
-        factors = [
-            FactorSpec(
-                name=f,
-                direction=random.choice(["asc", "desc"]),
-                weight=round(random.random(), 2),
+        if workload_type == "FUNDAMENTAL":
+            # Type 1: Fundamental Composite
+            # KOSPI/KOSDAQ Large-cap, PER/PBR/EPS/DividendYield
+            market = random.choice(["KOSPI", "KOSDAQ"])
+            universe = UniverseSpec(market=market, min_market_cap=50000000000, excludes=[])
+            
+            factors = [
+                FactorSpec(name="PER", direction="asc", weight=0.3),
+                FactorSpec(name="PBR", direction="asc", weight=0.2),
+                FactorSpec(name="EPS", direction="desc", weight=0.3),
+                FactorSpec(name="DividendYield", direction="desc", weight=0.2),
+            ]
+            strategy = StrategySpec(
+                factors=factors,
+                portfolio=PortfolioSpec(top_n=20, weight_method="equal"),
+                rebalancing=RebalancingSpec(frequency="monthly"),
             )
-            for f in selected_factors
-        ]
 
-        strategy = StrategySpec(
-            factors=factors,
-            portfolio=PortfolioSpec(top_n=20, weight_method="equal"),
-            rebalancing=RebalancingSpec(frequency="monthly"),
-        )
+        elif workload_type == "MOMENTUM":
+            # Type 2: Momentum Trend
+            # Large Universe, Momentum_3M & Momentum_12M
+            universe = UniverseSpec(market="ALL", min_market_cap=100000000000, excludes=[])
+            factors = [
+                FactorSpec(name="Momentum_3M", direction="desc", weight=0.5),
+                FactorSpec(name="Momentum_12M", direction="desc", weight=0.5),
+            ]
+            strategy = StrategySpec(
+                factors=factors,
+                portfolio=PortfolioSpec(top_n=30, weight_method="market_cap"),
+                rebalancing=RebalancingSpec(frequency="monthly"),
+            )
+
+        elif workload_type == "SMALLCAP":
+            # Type 3: High-turnover Small Cap
+            # Small-cap Universe (represented by min_cap=0 and assuming universe selection), Momentum + PER
+            universe = UniverseSpec(market="ALL", min_market_cap=0, excludes=[])
+            factors = [
+                FactorSpec(name="Momentum_3M", direction="desc", weight=0.6),
+                FactorSpec(name="PER", direction="asc", weight=0.4),
+            ]
+            strategy = StrategySpec(
+                factors=factors,
+                portfolio=PortfolioSpec(top_n=50, weight_method="equal"),
+                rebalancing=RebalancingSpec(frequency="monthly"), # High-turnover simulation via query freq
+            )
+
+        else:
+            # MIXED / Random
+            market = random.choice(markets)
+            min_cap = random.choice([0, 10000000000, 50000000000])
+            universe = UniverseSpec(market=market, min_market_cap=min_cap, excludes=[])
+            
+            num_factors = random.randint(1, 5)
+            selected_factors = random.sample(factor_keys, num_factors)
+            factors = [
+                FactorSpec(
+                    name=f,
+                    direction=random.choice(["asc", "desc"]),
+                    weight=round(random.random(), 2),
+                )
+                for f in selected_factors
+            ]
+            strategy = StrategySpec(
+                factors=factors,
+                portfolio=PortfolioSpec(top_n=20, weight_method="equal"),
+                rebalancing=RebalancingSpec(frequency="monthly"),
+            )
 
         sql, params, _ = _build_scored_sql(universe, strategy, start_date, end_date)
 
@@ -178,8 +227,8 @@ def _generate_random_workload_queries(count: int) -> List[Dict[str, Any]]:
     return queries
 
 
-def create_workload(db: Session, name: str, description: str, count: int) -> Workload:
-    queries = _generate_random_workload_queries(count)
+def create_workload(db: Session, name: str, description: str, count: int, workload_type: str = "MIXED") -> Workload:
+    queries = _generate_workload_queries(count, workload_type)
     workload = Workload(
         name=name, 
         description=description, 

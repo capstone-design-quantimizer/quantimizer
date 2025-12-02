@@ -16,6 +16,7 @@ class WorkloadCreate(BaseModel):
     name: str
     description: Optional[str] = None
     count: int = 100
+    workload_type: str = "MIXED" 
 
 class WorkloadRead(BaseModel):
     id: uuid.UUID

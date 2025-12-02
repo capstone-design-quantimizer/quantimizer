@@ -101,7 +101,8 @@ def create_new_workload(
 ):
     check_admin(current_user)
     try:
-        wl = create_workload(db, workload_in.name, workload_in.description, workload_in.count)
+        # workload_type 인자 추가
+        wl = create_workload(db, workload_in.name, workload_in.description, workload_in.count, workload_in.workload_type)
         return WorkloadRead(
             id=wl.id, name=wl.name, description=wl.description,
             query_count=len(wl.queries), created_at=wl.created_at
@@ -142,6 +143,20 @@ def get_workload_details(
         created_at=workload.created_at,
         queries=workload.queries
     )
+
+@router.delete("/workloads/{workload_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_workload(
+    workload_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_admin(current_user)
+    workload = db.query(Workload).filter(Workload.id == workload_id).first()
+    if not workload:
+        raise HTTPException(status_code=404, detail="Workload not found")
+    
+    db.delete(workload)
+    db.commit()
 
 @router.post("/workloads/{workload_id}/execute", response_model=WorkloadExecutionRead)
 def run_workload(
