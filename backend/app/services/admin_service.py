@@ -28,34 +28,45 @@ def apply_db_configuration(db: Session, config: Dict[str, Any]) -> Dict[str, Any
     errors = []
     key_pattern = re.compile(r"^[a-z0-9_]+$")
 
+    db.commit()
+
     for key, value in best_config.items():
         if not key_pattern.match(key):
             errors.append(f"Skipped invalid key format: {key}")
             continue
 
         try:
-            val_str = f"'{value}'" if isinstance(value, str) else str(value)
-            db.execute(text(f"ALTER SYSTEM SET {key} = {val_str}"))
+            if isinstance(value, str):
+                val_str = f"'{value}'"
+            elif isinstance(value, bool):
+                val_str = "'on'" if value else "'off'"
+            else:
+                val_str = str(value)
+
+            query = text(f"ALTER SYSTEM SET {key} = {val_str}")
+            db.execute(query)
+            
+            db.commit()
             applied_keys.append(key)
+
         except Exception as e:
             db.rollback()
             errors.append(f"Failed to set {key}: {str(e)}")
 
-    db.commit()
-
     try:
         db.execute(text("SELECT pg_reload_conf()"))
+        db.commit()
     except Exception as e:
         db.rollback()
         errors.append(f"Reload failed: {str(e)}")
 
+    restart_required = []
     try:
         restart_query = text("SELECT name FROM pg_settings WHERE pending_restart = true")
         restart_rows = db.execute(restart_query).fetchall()
         restart_required = [row[0] for row in restart_rows]
     except Exception as e:
         db.rollback()
-        restart_required = []
         errors.append(f"Failed to check pending restarts: {str(e)}")
 
     return {
