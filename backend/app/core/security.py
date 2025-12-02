@@ -25,23 +25,33 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> str:
+def _create_token(
+    subject: str, 
+    token_type: str, 
+    expires_delta: timedelta, 
+    extra_claims: Dict[str, Any] = None
+) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode: Dict[str, Any] = {"sub": subject, "type": token_type, "exp": expire}
+    
+    if extra_claims:
+        to_encode.update(extra_claims)
+        
     encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
     return encoded_jwt
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, extra_claims: Dict[str, Any] = None) -> str:
     settings = get_settings()
     expires_delta = timedelta(minutes=settings.access_token_expires_minutes)
-    return _create_token(subject, "access", expires_delta)
+    return _create_token(subject, "access", expires_delta, extra_claims)
 
 
 def create_refresh_token(subject: str) -> str:
     settings = get_settings()
     expires_delta = timedelta(minutes=settings.refresh_token_expires_minutes)
+    # Refresh token usually doesn't need extra claims, just the subject to rotate the access token
     return _create_token(subject, "refresh", expires_delta)
 
 
