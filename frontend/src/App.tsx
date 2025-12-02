@@ -8,86 +8,33 @@ import EquityChart from "./components/EquityChart";
 import { Modal, Pagination } from "./components/Shared";
 import StrategyBuilder from "./pages/StrategyBuilder";
 import Onboarding from "./pages/Onboarding";
-import AdminTuner from "./pages/AdminTuner";
-
-// -------------------- Constants --------------------
+import AdminDashboard from "./pages/AdminDashboard";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const TOKEN_KEY = "quant.token";
+const ADMIN_TOKEN_KEY = "quant.admin_token";
 const NEW_STRAT_ID = "__new__";
 
 const formatDate = (s: string) => new Date(s).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' });
 const formatPct = (n: number) => n ? `${(n * 100).toFixed(2)}%` : "0.00%";
 const formatNum = (n: number) => new Intl.NumberFormat('ko-KR', { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-// -------------------- Main App --------------------
-
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
+  const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem(ADMIN_TOKEN_KEY));
   const [username, setUsername] = useState<string>("");
-  const [tokenPayload, setTokenPayload] = useState<any>(null); // 토큰 데이터 저장
 
-  // page 초기값: 토큰이 있으면 대시보드, 없으면 온보딩
   const [page, setPage] = useState(token ? "dashboard" : "onboarding");
   const [loading, setLoading] = useState(false);
 
-  // Global State
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [settings, setSettings] = useState<BacktestSetting[]>([]);
   const [backtests, setBacktests] = useState<Backtest[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
 
-  // ----------------------------------------------------
-  // [수정] 관리자 권한 체크 로직 강화
-  // ----------------------------------------------------
-  const isAdmin = useMemo(() => {
-    if (!tokenPayload) return false;
-    const adminEmail = "admin@admin.com";
-    
-    // 토큰 내의 가능한 모든 필드에서 이메일 확인 (대소문자 무시)
-    const candidates = [
-        tokenPayload.sub,
-        tokenPayload.email,
-        tokenPayload.username,
-        tokenPayload.preferred_username,
-        username // state에 저장된 username도 확인
-    ];
-
-    return candidates.some(val => val && String(val).toLowerCase() === adminEmail);
-  }, [tokenPayload, username]);
-
-  useEffect(() => {
-    if (token) {
-      try {
-        // JWT 디코딩 (한글 깨짐 방지 로직 포함)
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        
-        const payload = JSON.parse(jsonPayload);
-        console.log("Decoded Token Payload:", payload); // 디버깅용 로그
-
-        setTokenPayload(payload);
-        // 사용자명 표시를 위한 우선순위 설정
-        setUsername(payload.username || payload.sub || payload.email || "User");
-      } catch (e) {
-        console.error("Token decode failed:", e);
-        setToken(null);
-        localStorage.removeItem(TOKEN_KEY);
-      }
-    } else {
-      setUsername("");
-      setTokenPayload(null);
-    }
-  }, [token]);
-
-  // Dashboard State
   const [slideIndex, setSlideIndex] = useState(0);
   const [dashboardFilter, setDashboardFilter] = useState<'return' | 'latest'>('return');
 
-  // Comparison & List State
   const [stratPage, setStratPage] = useState(1);
   const [btPage, setBtPage] = useState(1);
   const [stPage, setStPage] = useState(1);
@@ -104,22 +51,38 @@ export default function App() {
   const [settingModal, setSettingModal] = useState(false);
   const [writeModal, setWriteModal] = useState(false);
 
-  // Forms
   const [settingForm, setSettingForm] = useState<Partial<BacktestSetting>>({});
   const [postForm, setPostForm] = useState({ title: '', content: '', strategyId: '' });
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', username: '' });
+  const [adminAuthForm, setAdminAuthForm] = useState({ email: '', password: '' });
+
+  useEffect(() => {
+    if (adminToken) {
+      setPage('admin-dashboard');
+    } else if (token) {
+      if (page === 'onboarding' || page === 'admin-login') {
+        setPage('dashboard');
+      }
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        const payload = JSON.parse(jsonPayload);
+        setUsername(payload.username || payload.sub || "User");
+      } catch (e) {
+        setToken(null);
+        localStorage.removeItem(TOKEN_KEY);
+      }
+    }
+  }, [token, adminToken]);
 
   const api = useCallback(async (url: string, opts: any = {}) => {
     const headers: any = { Authorization: `Bearer ${token}` };
-    
-    if (opts.headers) {
-        Object.assign(headers, opts.headers);
-    }
-    
-    if (opts.body instanceof FormData) {
-        delete headers['Content-Type'];
-    }
+    if (opts.headers) Object.assign(headers, opts.headers);
+    if (opts.body instanceof FormData) delete headers['Content-Type'];
 
     const res = await fetch(API_BASE + url, { ...opts, headers });
     if (res.status === 401) {
@@ -131,6 +94,22 @@ export default function App() {
     }
     return res;
   }, [token]);
+
+  const adminApi = useCallback(async (url: string, opts: any = {}) => {
+    const headers: any = { Authorization: `Bearer ${adminToken}` };
+    if (opts.headers) Object.assign(headers, opts.headers);
+    if (opts.body instanceof FormData) delete headers['Content-Type'];
+    
+    const res = await fetch(API_BASE + url, { ...opts, headers });
+    if (res.status === 401) {
+      setAdminToken(null); 
+      localStorage.removeItem(ADMIN_TOKEN_KEY); 
+      setPage("admin-login");
+      Swal.fire("관리자 인증 만료", "다시 로그인해주세요.", "warning");
+      throw new Error("Auth");
+    }
+    return res;
+  }, [adminToken]);
 
   const loadData = useCallback(async () => {
     if (!token) return;
@@ -153,13 +132,22 @@ export default function App() {
     setLoading(false);
   }, [token, api, strategyCompareSettingId]);
 
-  useEffect(() => { if (token) loadData(); }, [token]);
+  useEffect(() => { 
+    if (token && page !== 'admin-dashboard' && page !== 'admin-login') {
+      loadData(); 
+    }
+  }, [token, page]);
 
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
-    const endpoint = authMode === 'login' ? "/auth/login" : "/auth/register";
-    const body = authMode === 'login' ? new URLSearchParams({ username: authForm.email, password: authForm.password }) : JSON.stringify(authForm);
-    const headers = authMode === 'register' ? { "Content-Type": "application/json" } : { "Content-Type": "application/x-www-form-urlencoded" };
+    const endpoint = authMode === 'login' ? "/auth/login" : "/users";
+    const body = authMode === 'login' 
+        ? new URLSearchParams({ username: authForm.email, password: authForm.password }) 
+        : JSON.stringify(authForm);
+    const headers = authMode === 'register' 
+        ? { "Content-Type": "application/json" } 
+        : { "Content-Type": "application/x-www-form-urlencoded" };
+    
     try {
       const res = await fetch(API_BASE + endpoint, { method: "POST", headers, body });
       if (res.ok) {
@@ -172,8 +160,27 @@ export default function App() {
           localStorage.setItem(TOKEN_KEY, d.access_token);
           setPage("dashboard"); 
         }
-      } else Swal.fire("실패", "로그인 또는 가입 정보를 확인하세요.", "error");
-    } catch { Swal.fire("오류", "네트워크 오류가 발생했습니다.", "error"); }
+      } else Swal.fire("실패", "정보를 확인하세요.", "error");
+    } catch { Swal.fire("오류", "네트워크 오류", "error"); }
+  };
+
+  const handleAdminLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+        const res = await fetch(API_BASE + "/admin/auth/login", { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(adminAuthForm)
+        });
+        if (res.ok) {
+            const d = await res.json();
+            setAdminToken(d.access_token);
+            localStorage.setItem(ADMIN_TOKEN_KEY, d.access_token);
+            setPage('admin-dashboard');
+        } else {
+            Swal.fire("접근 거부", "관리자 정보가 올바르지 않습니다.", "error");
+        }
+    } catch { Swal.fire("오류", "네트워크 오류", "error"); }
   };
 
   const saveStrategy = async (id: string, name: string, desc: string, config: StrategyConfig) => {
@@ -184,20 +191,18 @@ export default function App() {
     if (res.ok) {
       const d = await res.json();
       loadData();
-      Swal.fire("저장 완료", "전략이 성공적으로 저장되었습니다.", "success");
+      Swal.fire("저장 완료", "전략이 저장되었습니다.", "success");
       return d.id;
     }
   };
 
   const deleteStrategy = async (id: string) => {
-    const r = await Swal.fire({ title: '삭제하시겠습니까?', text: "이 작업은 되돌릴 수 없습니다.", icon: 'warning', showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소', confirmButtonColor: '#d33' });
+    const r = await Swal.fire({ title: '삭제하시겠습니까?', icon: 'warning', showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소', confirmButtonColor: '#d33' });
     if (r.isConfirmed) {
       const res = await api(`/strategies/${id}`, { method: 'DELETE' });
       if (res.ok) {
         loadData();
         Swal.fire("삭제됨", "전략이 삭제되었습니다.", "success");
-      } else {
-        Swal.fire("실패", "전략 삭제 중 오류가 발생했습니다.", "error");
       }
     }
   };
@@ -214,17 +219,18 @@ export default function App() {
         loadData();
         return result;
       }
-      else { Swal.fire("실패", "백테스트 실행 중 오류가 발생했습니다.", "error"); return null; }
+      else { Swal.fire("실패", "오류가 발생했습니다.", "error"); return null; }
     } catch {
       setLoading(false);
-      Swal.fire("오류", "실행 실패", "error");
       return null;
     }
   };
 
   const saveSetting = async () => {
     await api("/backtest-settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...settingForm, market: settingForm.market || "ALL", min_market_cap: Number(settingForm.min_market_cap), initial_capital: Number(settingForm.initial_capital), exclude_list: [] }) });
-    setSettingModal(false); loadData(); Swal.fire("완료", "설정이 저장되었습니다.", "success");
+    setSettingModal(false); 
+    loadData(); 
+    Swal.fire("완료", "설정이 저장되었습니다.", "success");
   };
 
   const deleteSetting = async (id: string) => {
@@ -235,18 +241,18 @@ export default function App() {
   const createPost = async () => {
     if (!postForm.title) return Swal.fire("알림", "제목을 입력하세요.", "warning");
     await api("/community/posts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: postForm.title, content: postForm.content, strategy_id: postForm.strategyId }) });
-    setWriteModal(false); loadData(); Swal.fire("등록 완료", "게시글이 등록되었습니다.", "success");
+    setWriteModal(false); 
+    loadData(); 
+    Swal.fire("등록 완료", "게시글이 등록되었습니다.", "success");
   };
 
   const deletePost = async (id: string) => {
-    const r = await Swal.fire({ title: '게시글 삭제', text: "정말 삭제하시겠습니까?", icon: 'warning', showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소', confirmButtonColor: '#d33' });
+    const r = await Swal.fire({ title: '삭제', icon: 'warning', showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소', confirmButtonColor: '#d33' });
     if (r.isConfirmed) {
       const res = await api(`/community/posts/${id}`, { method: 'DELETE' });
       if (res.ok) {
         loadData();
         Swal.fire("삭제됨", "게시글이 삭제되었습니다.", "success");
-      } else {
-        Swal.fire("오류", "삭제 권한이 없거나 오류가 발생했습니다.", "error");
       }
     }
   };
@@ -304,8 +310,63 @@ export default function App() {
 
   if (page === 'onboarding') {
     return (
-      <Onboarding
-        onStart={() => setPage(token ? 'dashboard' : 'login')}
+      <>
+        <Onboarding onStart={() => setPage(token ? 'dashboard' : 'login')} />
+        <div style={{position: 'fixed', bottom: 10, right: 10}}>
+          <button 
+            className="btn--ghost" 
+            onClick={() => setPage('admin-login')} 
+            style={{fontSize: 11, opacity: 0.5}}
+          >
+            Admin Portal
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (page === 'admin-login') {
+    return (
+      <div className="auth-container" style={{background: '#111'}}>
+        <div className="auth-card" style={{borderColor: '#333', background: '#222', color: '#fff'}}>
+          <h2 style={{marginBottom: 8, fontSize: '1.8rem', color: '#fff'}}>Admin Portal</h2>
+          <p style={{color: '#888', marginBottom: 32}}>System Administration</p>
+          <form onSubmit={handleAdminLogin} style={{display:'flex', flexDirection:'column', gap:16}}>
+            <input 
+              className="input" 
+              placeholder="Admin Email" 
+              type="email" 
+              value={adminAuthForm.email} 
+              onChange={e => setAdminAuthForm({...adminAuthForm, email: e.target.value})} 
+              style={{background:'#333', border:'none', color:'#fff'}} 
+              required 
+            />
+            <input 
+              className="input" 
+              placeholder="Password" 
+              type="password" 
+              value={adminAuthForm.password} 
+              onChange={e => setAdminAuthForm({...adminAuthForm, password: e.target.value})} 
+              style={{background:'#333', border:'none', color:'#fff'}} 
+              required 
+            />
+            <button className="btn btn--primary" style={{height:44, background:'#fff', color:'#000'}}>Login</button>
+          </form>
+          <button className="btn--ghost" style={{marginTop:16, color:'#666'}} onClick={() => setPage('onboarding')}>Back to Service</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === 'admin-dashboard') {
+    return (
+      <AdminDashboard 
+        api={adminApi} 
+        onLogout={() => { 
+          setAdminToken(null); 
+          localStorage.removeItem(ADMIN_TOKEN_KEY); 
+          setPage('admin-login'); 
+        }} 
       />
     );
   }
@@ -325,7 +386,6 @@ export default function App() {
           <button className="btn--ghost" style={{ marginTop: 16 }} onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
             {authMode === 'login' ? '계정 만들기' : '로그인하기'}
           </button>
-
           <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
             <button className="btn--ghost" onClick={() => setPage('onboarding')} style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
               &larr; 서비스 소개 보기
@@ -342,12 +402,10 @@ export default function App() {
         <div className="top-header__inner">
           <div className="header-top-row">
             <div className="brand" onClick={() => setPage('dashboard')}>
-              <div className="brand-logo">Q</div> QuantiMizer {isAdmin && <span className="badge" style={{marginLeft: 8, background: 'var(--danger)', color: 'white'}}>ADMIN</span>}
+              <div className="brand-logo">Q</div> QuantiMizer
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <button className="logout-button" onClick={() => setPage('onboarding')} style={{ border: 'none', background: 'var(--bg-subtle)', fontWeight: 600 }}>
-                💡 처음이신가요?
-              </button>
+              <span style={{fontSize: 13, color: '#666'}}>Hello, <b>{username}</b></span>
               <button className="logout-button" onClick={() => {
                 setToken(null);
                 localStorage.removeItem(TOKEN_KEY);
@@ -368,17 +426,6 @@ export default function App() {
                 {tab.label}
               </button>
             ))}
-            
-            {/* Admin Tab Visibility Controlled by isAdmin */}
-            {isAdmin && (
-               <button 
-                 className={`nav-tab ${page === 'admin' ? 'nav-tab--active' : ''}`} 
-                 onClick={() => setPage('admin')}
-                 style={{ color: page === 'admin' ? 'var(--danger)' : 'var(--text-secondary)' }}
-               >
-                 ⚙️ 관리자
-               </button>
-            )}
           </nav>
         </div>
       </header>
@@ -596,7 +643,6 @@ export default function App() {
               <button className="btn btn--primary" onClick={() => setWriteModal(true)}>+ 글쓰기</button>
             </div>
 
-            {/* Top 3 Performers Section */}
             {topCommunityPosts.length > 0 && (
               <div style={{ marginBottom: 40 }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: 16 }}>최근 수익률 TOP 3</h3>
@@ -700,12 +746,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* Admin Page Routing */}
-        {page === 'admin' && isAdmin && (
-          <AdminTuner api={api} />
-        )}
-
       </main>
 
       {isStrategyCompareModalOpen && (
