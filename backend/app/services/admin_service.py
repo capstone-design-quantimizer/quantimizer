@@ -24,16 +24,14 @@ def _get_current_params(db: Session, keys: List[str]) -> Dict[str, str]:
     if not keys:
         return {}
     
-    # PostgreSQL specific query to get current settings
-    # We use pg_settings to get the actual runtime value
     params_str = ",".join([f"'{k}'" for k in keys])
     query = text(f"SELECT name, setting FROM pg_settings WHERE name IN ({params_str})")
     rows = db.execute(query).fetchall()
     return {row[0]: row[1] for row in rows}
 
 
-def apply_db_configuration(db: Session, config: Dict[str, Any], applied_by: str = "system") -> Dict[str, Any]:
-    best_config = config.get("best_configuration", config) # Handle both wrapped and raw format
+def apply_db_configuration(db: Session, config: Dict[str, Any], applied_by: str = "system", filename: str = None) -> Dict[str, Any]:
+    best_config = config.get("best_configuration", config)
     if not best_config:
         raise ValueError("Invalid configuration data")
 
@@ -42,19 +40,18 @@ def apply_db_configuration(db: Session, config: Dict[str, Any], applied_by: str 
     errors: List[str] = []
     key_pattern = re.compile(r"^[a-z0-9_]+$")
 
-    # 1. Capture Backup (Snapshot of current values for keys about to be changed)
     target_keys = [k for k in best_config.keys() if key_pattern.match(k)]
     backup_config = _get_current_params(db, target_keys)
 
-    # 2. Save Log (Before applying)
     log_entry = DBTuningLog(
         applied_by=applied_by,
+        filename=filename,
         target_config=best_config,
-        backup_config=backup_config
+        backup_config=backup_config,
+        applied_at=datetime.now()
     )
     db.add(log_entry)
     
-    # 3. Apply Configuration
     valid_names = None
     try:
         rows = db.execute(text("SELECT name FROM pg_settings")).fetchall()
@@ -64,7 +61,7 @@ def apply_db_configuration(db: Session, config: Dict[str, Any], applied_by: str 
 
     for key, value in best_config.items():
         if key not in target_keys:
-            continue # Skipped invalid pattern earlier
+            continue
 
         if valid_names is not None and key not in valid_names:
             errors.append(f"Skipped unknown parameter: {key}")
@@ -95,7 +92,6 @@ def apply_db_configuration(db: Session, config: Dict[str, Any], applied_by: str 
         db.rollback()
         errors.append(f"Final commit failed: {str(e)}")
 
-    # 4. Reload Config
     restart_required: List[str] = []
     if applied_system_keys:
         try:
@@ -129,17 +125,14 @@ def restore_db_configuration(db: Session, log_id: str, applied_by: str) -> Dict[
     if log.is_reverted:
         raise ValueError("Already reverted")
 
-    # Apply the backup configuration
     result = apply_db_configuration(db, log.backup_config, applied_by=f"{applied_by} (Restore)")
     
-    # Update log status
     log.is_reverted = True
     log.reverted_at = datetime.now()
     db.commit()
 
     return result
 
-# ... (Existing workload functions remain unchanged) ...
 def _generate_random_workload_queries(count: int) -> List[Dict[str, Any]]:
     queries = []
     factor_keys = list(FACTOR_COLUMN_MAP.keys())
@@ -187,7 +180,12 @@ def _generate_random_workload_queries(count: int) -> List[Dict[str, Any]]:
 
 def create_workload(db: Session, name: str, description: str, count: int) -> Workload:
     queries = _generate_random_workload_queries(count)
-    workload = Workload(name=name, description=description, queries=queries)
+    workload = Workload(
+        name=name, 
+        description=description, 
+        queries=queries,
+        created_at=datetime.now()
+    )
     db.add(workload)
     db.commit()
     db.refresh(workload)
@@ -227,7 +225,6 @@ def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
     settings_query = text("SELECT name, setting FROM pg_settings")
     current_config = {row[0]: row[1] for row in db.execute(settings_query).fetchall()}
 
-    # Measure Stats Before
     pre_stats = _get_pg_stats(db)
     
     start_time = time.perf_counter()
@@ -239,7 +236,6 @@ def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
     end_time = time.perf_counter()
     duration_ms = (end_time - start_time) * 1000
 
-    # Measure Stats After
     post_stats = _get_pg_stats(db)
 
     metrics = {}
@@ -265,7 +261,8 @@ def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
         workload_id=workload.id,
         execution_time_ms=duration_ms,
         db_config_snapshot=current_config,
-        extended_metrics=metrics
+        extended_metrics=metrics,
+        created_at=datetime.now()
     )
     db.add(execution)
     db.commit()

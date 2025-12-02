@@ -22,7 +22,7 @@ class WorkloadRead(BaseModel):
     name: str
     description: Optional[str]
     query_count: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -36,7 +36,7 @@ class WorkloadExecutionRead(BaseModel):
     execution_time_ms: float
     db_config_snapshot: Dict[str, Any]
     extended_metrics: Optional[Dict[str, Any]] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -44,12 +44,12 @@ class WorkloadExecutionRead(BaseModel):
 class DBTuningLogRead(BaseModel):
     id: uuid.UUID
     applied_by: str
-    filename: Optional[str]
-    applied_at: datetime
+    filename: Optional[str] = None
+    applied_at: Optional[datetime] = None
     target_config: Dict[str, Any]
     backup_config: Dict[str, Any]
     is_reverted: bool
-    reverted_at: Optional[datetime]
+    reverted_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
