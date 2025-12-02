@@ -30,6 +30,8 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 ADMIN_EMAIL = "admin@admin.com"
 
+# --- Security & Auth for Admin ---
+
 def check_admin(user: User):
     if user.email != ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -51,9 +53,8 @@ def admin_login(
             detail="Incorrect password",
         )
     
-    access_token = create_access_token(
-        data={"sub": user.email, "role": "admin"}
-    )
+    access_token = create_access_token(subject=user.email)
+    
     return {"access_token": access_token, "token_type": "bearer"}
 
 # --- DB Tuning & Workloads ---
@@ -125,6 +126,7 @@ def list_executions(
     execs = db.query(WorkloadExecution).order_by(WorkloadExecution.created_at.desc()).all()
     return execs
 
+# --- Dashboard & User Management ---
 
 @router.get("/dashboard/stats", response_model=AdminDashboardStats)
 def get_dashboard_stats(
@@ -156,6 +158,7 @@ def list_users(
 ):
     check_admin(current_user)
     
+    # Joining with counts
     users = db.query(User).all()
     result = []
     
