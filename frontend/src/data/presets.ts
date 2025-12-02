@@ -1,53 +1,62 @@
 import type { StrategyConfig } from '../StrategyBlocklyEditor';
 
-export const PRESET_STRATEGIES: { name: string; description: string; config: StrategyConfig }[] = [
+export interface PresetStrategy {
+    name: string;
+    description: string;
+    config: StrategyConfig;
+}
+
+export const PRESET_STRATEGIES: PresetStrategy[] = [
     {
-        name: "저평가 가치주 전략 (Value)",
-        description: "PER와 PBR이 낮은 종목을 선별하여 내재 가치 대비 저평가된 주식에 투자합니다.",
+        name: "[AI 추천] 강세장 모멘텀 전략",
+        description: "예측 모델이 상승 추세를 가리킬 때 유효합니다. 최근 3개월/12개월 모멘텀이 강력하고 거래량이 동반되는 종목을 선정하여 추세를 추종합니다.",
         config: {
             factors: [
-                { name: 'PER', direction: 'asc', weight: 1 },
-                { name: 'PBR', direction: 'asc', weight: 1 },
+                { name: 'Momentum_12M', direction: 'desc', weight: 0.4 },
+                { name: 'Momentum_3M', direction: 'desc', weight: 0.3 },
+                { name: 'GPM', direction: 'desc', weight: 0.3 }
+            ],
+            portfolio: { top_n: 10, weight_method: 'market_cap' },
+            rebalancing: { frequency: 'monthly' }
+        }
+    },
+    {
+        name: "[AI 추천] 약세장 방어형 전략",
+        description: "예측 모델이 하락 또는 횡보를 가리킬 때 유효합니다. 변동성이 낮고(Low Vol) 배당 수익률이 높으며 현금 흐름이 우수한 대형주 위주로 포트폴리오를 방어합니다.",
+        config: {
+            factors: [
+                { name: 'Volatility_20D', direction: 'asc', weight: 0.4 },
+                { name: 'DividendYield', direction: 'desc', weight: 0.3 },
+                { name: 'InterestCoverage', direction: 'desc', weight: 0.3 }
             ],
             portfolio: { top_n: 20, weight_method: 'equal' },
             rebalancing: { frequency: 'quarterly' }
         }
     },
     {
-        name: "소형주 모멘텀 전략",
-        description: "시가총액이 낮은 종목 중 최근 12개월 수익률이 좋은 종목을 추세 추종합니다.",
+        name: "[AI 추천] 턴어라운드 저평가 전략",
+        description: "예측 모델이 저점 반등을 시사할 때 사용합니다. PBR이 낮지만 영업이익률(OPM)이 개선되고 있는 낙폭 과대 우량주를 선별합니다.",
         config: {
             factors: [
-                { name: 'MarketCap', direction: 'asc', weight: 1 },
-                { name: 'Momentum_12M', direction: 'desc', weight: 1 },
+                { name: 'PBR', direction: 'asc', weight: 0.4 },
+                { name: 'OPM', direction: 'desc', weight: 0.3 },
+                { name: 'ROE', direction: 'desc', weight: 0.3 }
             ],
-            portfolio: { top_n: 30, weight_method: 'equal' },
+            portfolio: { top_n: 15, weight_method: 'equal' },
             rebalancing: { frequency: 'monthly' }
         }
     },
     {
-        name: "고배당 우량주 전략",
-        description: "배당수익률이 높고 부채비율이 낮은 안정적인 기업에 투자합니다.",
+        name: "[AI 추천] 퀄리티 성장주 전략",
+        description: "장기적인 우상향 예측 시 적합합니다. ROE가 높고 부채비율이 낮으며 꾸준한 매출 성장을 보이는 퀄리티 주식에 집중 투자합니다.",
         config: {
             factors: [
-                { name: 'DividendYield', direction: 'desc', weight: 1 },
-                { name: 'DebtToEquity', direction: 'asc', weight: 0.5 },
-                { name: 'ROE', direction: 'desc', weight: 0.5 },
+                { name: 'ROE', direction: 'desc', weight: 0.4 },
+                { name: 'DebtToEquity', direction: 'asc', weight: 0.3 },
+                { name: 'EPS', direction: 'desc', weight: 0.3 }
             ],
-            portfolio: { top_n: 15, weight_method: 'market_cap' },
+            portfolio: { top_n: 10, weight_method: 'market_cap' },
             rebalancing: { frequency: 'quarterly' }
-        }
-    },
-    {
-        name: "기술적 반등 (RSI 역추세)",
-        description: "RSI가 낮아 과매도 구간에 진입한 종목을 매수하여 반등을 노립니다.",
-        config: {
-            factors: [
-                { name: 'RSI_14', direction: 'asc', weight: 1 },
-                { name: 'Volatility_20D', direction: 'asc', weight: 0.5 },
-            ],
-            portfolio: { top_n: 10, weight_method: 'equal' },
-            rebalancing: { frequency: 'monthly' }
         }
     }
 ];

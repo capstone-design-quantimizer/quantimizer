@@ -5,6 +5,7 @@ import "./App.css";
 import type { StrategyConfig } from "./StrategyBlocklyEditor";
 import type { Backtest, BacktestSetting, CommunityPost, Strategy } from "./types";
 import EquityChart from "./components/EquityChart";
+import PredictionChart from "./components/PredictionChart";
 import { Modal, Pagination } from "./components/Shared";
 import StrategyBuilder from "./pages/StrategyBuilder";
 import Onboarding from "./pages/Onboarding";
@@ -56,6 +57,19 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '', username: '' });
   const [adminAuthForm, setAdminAuthForm] = useState({ email: '', password: '' });
+
+  // Prediction Model Data (Integrated from Team Member)
+  const predictionCards = [
+    { title: "KOSPI 200 Forecast", image: "/images/tft_forecast_short.png" },
+    { title: "S&P 500 Volatility", image: "/images/tft_forecast_short1.png" },
+    { title: "USD/KRW Exchange Rate", image: "/images/tft_forecast_short2.png" },
+    { title: "Samsung Elec. Trend", image: "/images/tft_forecast_short3.png" },
+    { title: "SK Hynix Trend", image: "/images/tft_forecast_short4.png" },
+    { title: "Battery Sector Index", image: "/images/tft_forecast_short5.png" },
+    { title: "Semiconductor Index", image: "/images/tft_forecast_short6.png" },
+    { title: "Automotive Sector", image: "/images/tft_forecast_short7.png" },
+    { title: "Bio/Pharma Index", image: "/images/tft_forecast_short8.png" },
+  ];
 
   useEffect(() => {
     if (adminToken) {
@@ -416,6 +430,7 @@ export default function App() {
           <nav className="nav-tabs">
             {[
               { id: 'dashboard', label: '대시보드' },
+              { id: 'prediction', label: 'AI 예측 모델' }, // New Tab
               { id: 'builder', label: '전략 빌더' },
               { id: 'settings', label: '백테스트 조건' },
               { id: 'strategies', label: '내 전략' },
@@ -502,6 +517,28 @@ export default function App() {
               )}
             </div>
           </>
+        )}
+
+        {/* New Prediction Page */}
+        {page === 'prediction' && (
+          <div className="page-section">
+            <div className="section-header">
+              <h2 className="section-title">Expected World Macro & Sector Forecast (TFT Model)</h2>
+              <button className="btn btn--secondary" onClick={() => Swal.fire('Info', '데이터 업데이트 시각: 2025.12.02 09:00', 'info')}>
+                Update Info
+              </button>
+            </div>
+            <div className="prediction-grid">
+              {predictionCards.map((card, idx) => (
+                <PredictionChart 
+                  key={idx} 
+                  title={card.title} 
+                  imageSrc={card.image} 
+                  description="Temporal Fusion Transformer 기반 예측 결과"
+                />
+              ))}
+            </div>
+          </div>
         )}
 
         {page === 'builder' && (

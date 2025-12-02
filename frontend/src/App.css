@@ -46,7 +46,6 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
-  /* 모바일 가로 스크롤 방지 */
 }
 
 .app-shell {
@@ -122,7 +121,6 @@ body {
   height: var(--tab-height);
   align-items: center;
   overflow-x: auto;
-  /* 모바일 스크롤 바 숨김 처리 */
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -143,7 +141,6 @@ body {
   font-family: var(--font-sans);
   white-space: nowrap;
   flex-shrink: 0;
-  /* 탭 줄어듦 방지 */
 }
 
 .nav-tab:hover {
@@ -207,13 +204,108 @@ body {
   font-size: 13px;
 }
 
+/* Prediction Page Styles (NEW) */
+.prediction-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+.prediction-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.prediction-card:hover {
+  box-shadow: var(--shadow-card);
+}
+
+.prediction-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prediction-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 4px var(--success);
+}
+
+.status-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.prediction-body {
+  flex: 1;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  position: relative;
+  min-height: 240px;
+}
+
+.prediction-image-container {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  padding: 8px;
+}
+
+.prediction-image {
+  width: 100%;
+  height: 100%;
+  object-fit: fill; /* Finviz style: Fill the container */
+  display: block;
+  border: 1px solid var(--bg-active);
+  border-radius: 4px;
+}
+
+.prediction-meta {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+/* Section Header */
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
   flex-wrap: wrap;
-  /* 모바일 대응 */
   gap: 12px;
 }
 
@@ -647,7 +739,6 @@ body {
 .table-wrapper {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  /* 부드러운 스크롤 */
 }
 
 .table {
@@ -765,7 +856,6 @@ body {
   flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
   margin: 20px;
-  /* 모바일 마진 */
 }
 
 .modal__header {
@@ -1316,6 +1406,12 @@ body {
 
   /* Dashboard */
   .kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* Prediction Grid Mobile */
+  .prediction-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
