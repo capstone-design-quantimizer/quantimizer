@@ -60,15 +60,15 @@ export default function App() {
 
   // Prediction Model Data (Integrated from Team Member)
   const predictionCards = [
-    { title: "KOSPI 200 Forecast", image: "/images/tft_forecast_short.png" },
-    { title: "S&P 500 Volatility", image: "/images/tft_forecast_short1.png" },
-    { title: "USD/KRW Exchange Rate", image: "/images/tft_forecast_short2.png" },
-    { title: "Samsung Elec. Trend", image: "/images/tft_forecast_short3.png" },
-    { title: "SK Hynix Trend", image: "/images/tft_forecast_short4.png" },
-    { title: "Battery Sector Index", image: "/images/tft_forecast_short5.png" },
-    { title: "Semiconductor Index", image: "/images/tft_forecast_short6.png" },
-    { title: "Automotive Sector", image: "/images/tft_forecast_short7.png" },
-    { title: "Bio/Pharma Index", image: "/images/tft_forecast_short8.png" },
+    { title: "KOSPI 200 Forecast", image: "/assets/prediction/tft_forecast_short.png" },
+    { title: "S&P 500 Volatility", image: "/assets/prediction/tft_forecast_short1.png" },
+    { title: "USD/KRW Exchange Rate", image: "/assets/prediction/tft_forecast_short2.png" },
+    { title: "Samsung Elec. Trend", image: "/assets/prediction/tft_forecast_short3.png" },
+    { title: "SK Hynix Trend", image: "/assets/prediction/tft_forecast_short4.png" },
+    { title: "Battery Sector Index", image: "/assets/prediction/tft_forecast_short5.png" },
+    { title: "Semiconductor Index", image: "/assets/prediction/tft_forecast_short6.png" },
+    { title: "Automotive Sector", image: "/assets/prediction/tft_forecast_short7.png" },
+    { title: "Bio/Pharma Index", image: "/assets/prediction/tft_forecast_short8.png" },
   ];
 
   useEffect(() => {
