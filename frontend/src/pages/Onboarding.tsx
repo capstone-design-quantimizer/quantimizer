@@ -25,7 +25,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 <div className="hero-badge">Ver 2.0 AI Update</div>
                 <h1 className="onboarding-title">
                     데이터와 AI가 만드는<br />
-                    <span className="text-gradient">퀀트 투자의 모든 것</span>
+                    <span className="text-gradient">완벽한 투자 시나리오</span>
                 </h1>
                 <p className="onboarding-subtitle">
                     Temporal Fusion Transformer 기반의 시장 예측부터<br />
@@ -50,7 +50,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                         <p className="feature-desc">
                             최신 딥러닝 모델(TFT)을 활용하여 KOSPI 200, S&P 500 변동성, 
                             환율 등 주요 지표의 미래 흐름을 예측합니다. 
-                            과거 데이터 학습을 통해 산출된 신뢰 구간(5-95%)과 
+                            과거 데이터 학습을 통해 산출된 신뢰 구간과 
                             예측 트렌드를 실전 투자에 참고하세요.
                         </p>
                         <ul className="feature-list">
