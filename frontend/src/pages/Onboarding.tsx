@@ -18,6 +18,7 @@ const useCountUp = (end: number, duration: number = 2000, start: boolean = false
             if (!startTime) startTime = timestamp;
             const progress = Math.min((timestamp - startTime) / duration, 1);
             
+            // EaseOutExpo function for smooth landing
             const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
             
             setCount(Math.floor(easeProgress * (end - startValue) + startValue));
@@ -76,9 +77,11 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
     const [statsVisible, setStatsVisible] = useState(false);
     const statsRef = useRef<HTMLDivElement>(null);
 
-    const strategyCount = useCountUp(12850000, 2500, statsVisible);
-    const backtestCount = useCountUp(84200, 2000, statsVisible);
-    const accuracyCount = useCountUp(94, 1500, statsVisible);
+    const strategyCount = useCountUp(1000000, 2500, statsVisible);
+
+    const assetCount = useCountUp(2500, 2000, statsVisible);
+    
+    const factorCount = useCountUp(20, 1500, statsVisible);
 
     useEffect(() => {
         setPageLoaded(true);
@@ -86,7 +89,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
         const observer = new IntersectionObserver(entries => {
             if (entries[0].isIntersecting) {
                 setStatsVisible(true);
-                observer.disconnect();
+                observer.disconnect(); 
             }
         }, { threshold: 0.2 });
 
@@ -101,6 +104,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
         <div className="onboarding-container">
             <div className="onboarding-bg-orb" />
             
+            {/* Hero Section */}
             <div className={`onboarding-hero ${pageLoaded ? 'animate-fade-up' : ''}`}>
                 <div className="hero-badge">Ver 2.0 AI Update</div>
                 <h1 className="onboarding-title">
@@ -117,6 +121,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 </button>
             </div>
 
+            {/* Infinite Marquee of Factors */}
             <div className={`factor-ticker-wrapper ${pageLoaded ? 'animate-fade-up-delay' : ''}`}>
                 <div className="factor-ticker-track">
                     {[...FACTORS_LIST, ...FACTORS_LIST, ...FACTORS_LIST].map((factor, i) => (
@@ -125,24 +130,25 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 </div>
             </div>
 
+            {/* Stats Counter Section (Updated with Honest Metrics) */}
             <div ref={statsRef} className="stat-grid-container">
                 <div className="stat-card">
                     <div className="stat-value">
                         {strategyCount.toLocaleString()}+
                     </div>
-                    <div className="stat-label">생성 가능한 전략 조합</div>
+                    <div className="stat-label">조합 가능한 전략 시나리오</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">
-                        {backtestCount.toLocaleString()}
+                        {assetCount.toLocaleString()}+
                     </div>
-                    <div className="stat-label">누적 백테스트 실행</div>
+                    <div className="stat-label">분석 대상 종목 (Global/Local)</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">
-                        {accuracyCount}%
+                        {factorCount}
                     </div>
-                    <div className="stat-label">AI 트렌드 예측 정확도</div>
+                    <div className="stat-label">핵심 퀀트 팩터 & 지표</div>
                 </div>
             </div>
 
@@ -171,6 +177,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                     </div>
                 </ScrollRevealSection>
 
+                {/* Feature 2: Strategy Builder */}
                 <ScrollRevealSection className="feature-section">
                     <div className="feature-visual">
                         <img src={imgBuilder} alt="노코딩 전략 빌더" className="feature-img animate-float" style={{ animationDelay: '1s' }} />
@@ -193,6 +200,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                     </div>
                 </ScrollRevealSection>
 
+                {/* Feature 3: Strategy Comparison */}
                 <ScrollRevealSection className="feature-section reverse">
                     <div className="feature-visual">
                         <img src={imgCompare} alt="전략 비교 분석" className="feature-img animate-float" style={{ animationDelay: '0.5s' }} />
@@ -210,6 +218,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                     </div>
                 </ScrollRevealSection>
 
+                {/* Feature 4: Community */}
                 <ScrollRevealSection className="feature-section">
                     <div className="feature-visual">
                         <img src={imgCommunity} alt="커뮤니티" className="feature-img animate-float" style={{ animationDelay: '1.5s' }} />
@@ -228,6 +237,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 </ScrollRevealSection>
             </div>
 
+            {/* CTA Footer */}
             <div className="onboarding-cta-footer">
                 <h2>지금 바로 데이터 기반 투자를 경험하세요</h2>
                 <p>복잡한 설치 없이 웹에서 즉시 시작할 수 있습니다.</p>
@@ -236,6 +246,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 </button>
             </div>
 
+            {/* Footer */}
             <div className="onboarding-footer">
                 <p>© 2025 QuantiMizer. All rights reserved.</p>
             </div>
