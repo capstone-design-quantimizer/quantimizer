@@ -27,6 +27,9 @@ class WorkloadRead(BaseModel):
     class Config:
         orm_mode = True
 
+class WorkloadDetailRead(WorkloadRead):
+    queries: List[Dict[str, Any]]
+
 class WorkloadExecutionRead(BaseModel):
     id: uuid.UUID
     workload_id: uuid.UUID

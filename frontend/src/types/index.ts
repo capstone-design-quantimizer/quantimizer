@@ -74,12 +74,18 @@ export interface DBTuningLog {
     reverted_at?: string;
 }
 
+export interface WorkloadQuery {
+    sql: string;
+    params: Record<string, any>;
+}
+
 export interface Workload {
     id: string;
     name: string;
     description?: string;
     query_count: number;
     created_at: string;
+    queries?: WorkloadQuery[];
 }
 
 export interface WorkloadExecution {

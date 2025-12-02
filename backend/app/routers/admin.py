@@ -17,6 +17,7 @@ from app.schemas.admin import (
     DBTuneResult, 
     WorkloadCreate, 
     WorkloadRead, 
+    WorkloadDetailRead,
     WorkloadExecutionRead, 
     AdminDashboardStats,
     AdminLoginRequest,
@@ -68,7 +69,6 @@ async def tune_database(
     try:
         content = await file.read()
         config_data = json.loads(content)
-        # Pass admin email for logging
         return apply_db_configuration(db, config_data, applied_by=current_user.email)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -126,6 +126,26 @@ def list_workloads(
             query_count=len(w.queries), created_at=w.created_at
         ) for w in workloads
     ]
+
+@router.get("/workloads/{workload_id}", response_model=WorkloadDetailRead)
+def get_workload_details(
+    workload_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_admin(current_user)
+    workload = db.query(Workload).filter(Workload.id == workload_id).first()
+    if not workload:
+        raise HTTPException(status_code=404, detail="Workload not found")
+    
+    return WorkloadDetailRead(
+        id=workload.id,
+        name=workload.name,
+        description=workload.description,
+        query_count=len(workload.queries),
+        created_at=workload.created_at,
+        queries=workload.queries
+    )
 
 @router.post("/workloads/{workload_id}/execute", response_model=WorkloadExecutionRead)
 def run_workload(

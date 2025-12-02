@@ -35,6 +35,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
     const [executions, setExecutions] = useState<WorkloadExecution[]>([]);
     const [wlForm, setWlForm] = useState({ name: '', description: '', count: 100 });
     const [wlLoading, setWlLoading] = useState(false);
+    const [selectedWorkloadForQueries, setSelectedWorkloadForQueries] = useState<Workload | null>(null);
 
     // --- Monitor ---
     const [selectedExecution, setSelectedExecution] = useState<WorkloadExecution | null>(null);
@@ -188,6 +189,20 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         }
     };
 
+    const handleViewQueries = async (id: string) => {
+        try {
+            const res = await api(`/admin/workloads/${id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setSelectedWorkloadForQueries(data);
+            } else {
+                Swal.fire("실패", "쿼리 정보를 불러오지 못했습니다.", "error");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     // --- Charts ---
     const chartData: EquityPoint[] = useMemo(() => {
         return executions
@@ -204,6 +219,17 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             workload_name: workloads.find(w => w.id === e.workload_id)?.name || 'Unknown'
         }));
     }, [executions, workloads]);
+
+    // --- Components ---
+    const StatCard = ({ label, value, unit, color }: { label: string, value: string | number, unit?: string, color?: string }) => (
+        <div style={{ background: '#f9fafb', borderRadius: 12, padding: '20px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <span style={{ fontSize: 13, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.025em', marginBottom: 8 }}>{label}</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: 28, fontWeight: 700, color: color || '#111827', fontFamily: 'var(--font-mono)' }}>{value}</span>
+                {unit && <span style={{ fontSize: 14, color: '#9ca3af', fontWeight: 500 }}>{unit}</span>}
+            </div>
+        </div>
+    );
 
     return (
         <div className="app-shell">
@@ -243,7 +269,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             </header>
 
             <main className="main-content">
-                
                 {/* 1. Dashboard Stats */}
                 {activeTab === 'stats' && stats && (
                     <>
@@ -374,7 +399,12 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                                             <tr key={w.id}>
                                                 <td>{w.name}</td>
                                                 <td>{w.query_count}</td>
-                                                <td><button className="btn btn--secondary btn--sm" onClick={() => handleExecuteWorkload(w.id)}>▶ 실행</button></td>
+                                                <td>
+                                                    <div style={{display:'flex', gap: 4}}>
+                                                        <button className="btn btn--secondary btn--sm" onClick={() => handleViewQueries(w.id)}>조회</button>
+                                                        <button className="btn btn--secondary btn--sm" onClick={() => handleExecuteWorkload(w.id)}>▶ 실행</button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -422,28 +452,116 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                 )}
             </main>
 
-            {/* Analysis Modal */}
+            {/* Queries Modal */}
+            {selectedWorkloadForQueries && (
+                <Modal title={`워크로드 쿼리 목록 (${selectedWorkloadForQueries.name})`} onClose={() => setSelectedWorkloadForQueries(null)} width={900}>
+                    <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                        {selectedWorkloadForQueries.queries && selectedWorkloadForQueries.queries.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                {selectedWorkloadForQueries.queries.map((q, idx) => (
+                                    <div key={idx} style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, border: '1px solid #e5e5e5' }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#666', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Query #{idx + 1}</span>
+                                        </div>
+                                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', fontSize: 13, color: '#2563eb', background: '#fff', padding: 12, borderRadius: 4, border: '1px solid #eaeaea' }}>
+                                            {q.sql}
+                                        </pre>
+                                        <div style={{ marginTop: 12 }}>
+                                            <span style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase' }}>Parameters</span>
+                                            <div style={{ marginTop: 4, fontSize: 12, fontFamily: 'var(--font-mono)', color: '#444' }}>
+                                                {JSON.stringify(q.params)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="empty-state-small">생성된 쿼리 정보가 없습니다.</div>
+                        )}
+                    </div>
+                </Modal>
+            )}
+
+            {/* Analysis Modal (Improved UI) */}
             {selectedExecution && (
-                <Modal title="성능 상세 분석" onClose={() => setSelectedExecution(null)}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                        <div>
-                            <h4 style={{marginBottom: 12}}>📊 상세 성능 지표</h4>
-                            {selectedExecution.extended_metrics ? (
-                                <div className="metric-grid-compact" style={{gridTemplateColumns: '1fr 1fr'}}>
-                                    <div className="metric-box"><label>Buffer Hit Ratio</label><span>{selectedExecution.extended_metrics.buffer_hit_ratio}%</span></div>
-                                    <div className="metric-box"><label>Disk Blocks Read</label><span>{selectedExecution.extended_metrics.blocks_read}</span></div>
-                                    <div className="metric-box"><label>Buffer Blocks Hit</label><span>{selectedExecution.extended_metrics.blocks_hit}</span></div>
-                                    <div className="metric-box"><label>Rows Returned</label><span>{selectedExecution.extended_metrics.tuples_returned}</span></div>
-                                    <div className="metric-box"><label>Transactions</label><span>{selectedExecution.extended_metrics.transactions}</span></div>
-                                </div>
-                            ) : (
-                                <div className="empty-state-small">추가 지표 없음</div>
-                            )}
+                <Modal title="성능 상세 분석" onClose={() => setSelectedExecution(null)} width={1000}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                        {/* Header Section */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 24, borderBottom: '1px solid #eaeaea' }}>
+                            <div>
+                                <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Workload Execution ID</div>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600 }}>{selectedExecution.id}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Executed At</div>
+                                <div style={{ fontWeight: 600 }}>{new Date(selectedExecution.created_at).toLocaleString()}</div>
+                            </div>
                         </div>
+
+                        {/* Metrics Grid */}
                         <div>
-                            <h4 style={{marginBottom: 12}}>⚙️ DB 파라미터 스냅샷</h4>
-                            <div style={{ maxHeight: '300px', overflowY: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 6, fontSize: 12 }}>
-                                <pre style={{margin: 0}}>{JSON.stringify(selectedExecution.db_config_snapshot, null, 2)}</pre>
+                            <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#111827' }}>📊 Performance Metrics</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+                                <StatCard 
+                                    label="Execution Time" 
+                                    value={selectedExecution.execution_time_ms.toFixed(2)} 
+                                    unit="ms" 
+                                    color="#2563eb"
+                                />
+                                {selectedExecution.extended_metrics ? (
+                                    <>
+                                        <StatCard 
+                                            label="Buffer Hit Ratio" 
+                                            value={selectedExecution.extended_metrics.buffer_hit_ratio} 
+                                            unit="%" 
+                                            color={selectedExecution.extended_metrics.buffer_hit_ratio > 90 ? '#059669' : '#d97706'}
+                                        />
+                                        <StatCard 
+                                            label="Disk Blocks Read" 
+                                            value={selectedExecution.extended_metrics.blocks_read} 
+                                        />
+                                        <StatCard 
+                                            label="Buffer Blocks Hit" 
+                                            value={selectedExecution.extended_metrics.blocks_hit} 
+                                        />
+                                        <StatCard 
+                                            label="Rows Returned" 
+                                            value={selectedExecution.extended_metrics.tuples_returned} 
+                                        />
+                                        <StatCard 
+                                            label="Rows Fetched" 
+                                            value={selectedExecution.extended_metrics.tuples_fetched} 
+                                        />
+                                        <StatCard 
+                                            label="Transactions" 
+                                            value={selectedExecution.extended_metrics.transactions} 
+                                        />
+                                    </>
+                                ) : (
+                                    <div style={{ gridColumn: 'span 3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', background: '#f9fafb', borderRadius: 12 }}>
+                                        No extended metrics available
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Config Snapshot */}
+                        <div>
+                            <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#111827' }}>⚙️ DB Parameter Snapshot</h4>
+                            <div style={{ 
+                                background: '#1e293b', 
+                                color: '#e2e8f0', 
+                                padding: '20px', 
+                                borderRadius: 12, 
+                                fontFamily: 'var(--font-mono)', 
+                                fontSize: 13, 
+                                maxHeight: '300px', 
+                                overflowY: 'auto',
+                                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
+                            }}>
+                                <pre style={{ margin: 0 }}>
+                                    {JSON.stringify(selectedExecution.db_config_snapshot, null, 2)}
+                                </pre>
                             </div>
                         </div>
                     </div>

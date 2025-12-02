@@ -1,8 +1,19 @@
 import React from 'react';
 
-export const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
+interface ModalProps {
+    title: string;
+    onClose: () => void;
+    children: React.ReactNode;
+    width?: string | number;
+}
+
+export const Modal = ({ title, onClose, children, width = 800 }: ModalProps) => (
     <div className="modal__backdrop" onClick={onClose}>
-        <div className="modal__content" onClick={e => e.stopPropagation()}>
+        <div 
+            className="modal__content" 
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: width, width: '100%' }}
+        >
             <div className="modal__header">
                 <span>{title}</span>
                 <button className="btn--ghost" onClick={onClose} style={{ fontSize: '1.25rem' }}>&times;</button>
