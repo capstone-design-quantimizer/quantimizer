@@ -11,6 +11,16 @@ import StrategyBuilder from "./pages/StrategyBuilder";
 import Onboarding from "./pages/Onboarding";
 import AdminDashboard from "./pages/AdminDashboard";
 
+import imgForecast1 from './assets/prediction/tft_forecast_short.png';
+import imgForecast2 from './assets/prediction/tft_forecast_short1.png';
+import imgForecast3 from './assets/prediction/tft_forecast_short2.png';
+import imgForecast4 from './assets/prediction/tft_forecast_short3.png';
+import imgForecast5 from './assets/prediction/tft_forecast_short4.png';
+import imgForecast6 from './assets/prediction/tft_forecast_short5.png';
+import imgForecast7 from './assets/prediction/tft_forecast_short6.png';
+import imgForecast8 from './assets/prediction/tft_forecast_short7.png';
+import imgForecast9 from './assets/prediction/tft_forecast_short8.png';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const TOKEN_KEY = "quant.token";
 const ADMIN_TOKEN_KEY = "quant.admin_token";
@@ -59,16 +69,16 @@ export default function App() {
   const [adminAuthForm, setAdminAuthForm] = useState({ email: '', password: '' });
 
   // Prediction Model Data (Integrated from Team Member)
-  const predictionCards = [
-    { title: "KOSPI 200 Forecast", image: "/assets/prediction/tft_forecast_short.png" },
-    { title: "S&P 500 Volatility", image: "/assets/prediction/tft_forecast_short1.png" },
-    { title: "USD/KRW Exchange Rate", image: "/assets/prediction/tft_forecast_short2.png" },
-    { title: "Samsung Elec. Trend", image: "/assets/prediction/tft_forecast_short3.png" },
-    { title: "SK Hynix Trend", image: "/assets/prediction/tft_forecast_short4.png" },
-    { title: "Battery Sector Index", image: "/assets/prediction/tft_forecast_short5.png" },
-    { title: "Semiconductor Index", image: "/assets/prediction/tft_forecast_short6.png" },
-    { title: "Automotive Sector", image: "/assets/prediction/tft_forecast_short7.png" },
-    { title: "Bio/Pharma Index", image: "/assets/prediction/tft_forecast_short8.png" },
+   const predictionCards = [
+    { title: "KOSPI 200 Forecast", image: imgForecast1 },
+    { title: "S&P 500 Volatility", image: imgForecast2 },
+    { title: "USD/KRW Exchange Rate", image: imgForecast3 },
+    { title: "Samsung Elec. Trend", image: imgForecast4 },
+    { title: "SK Hynix Trend", image: imgForecast5 },
+    { title: "Battery Sector Index", image: imgForecast6 },
+    { title: "Semiconductor Index", image: imgForecast7 },
+    { title: "Automotive Sector", image: imgForecast8 },
+    { title: "Bio/Pharma Index", image: imgForecast9 },
   ];
 
   useEffect(() => {
@@ -523,7 +533,7 @@ export default function App() {
         {page === 'prediction' && (
           <div className="page-section">
             <div className="section-header">
-              <h2 className="section-title">Expected World Macro & Sector Forecast (TFT Model)</h2>
+              <h2 className="section-title">주가 예측 시뮬레이션</h2>
               <button className="btn btn--secondary" onClick={() => Swal.fire('Info', '데이터 업데이트 시각: 2025.12.02 09:00', 'info')}>
                 Update Info
               </button>
