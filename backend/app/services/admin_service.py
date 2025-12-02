@@ -30,28 +30,37 @@ def apply_db_configuration(db: Session, config: Dict[str, Any]) -> Dict[str, Any
 
     for key, value in best_config.items():
         if not key_pattern.match(key):
+            errors.append(f"Skipped invalid key format: {key}")
             continue
+
         try:
             val_str = f"'{value}'" if isinstance(value, str) else str(value)
             db.execute(text(f"ALTER SYSTEM SET {key} = {val_str}"))
             applied_keys.append(key)
         except Exception as e:
-            errors.append(f"{key}: {str(e)}")
+            db.rollback()
+            errors.append(f"Failed to set {key}: {str(e)}")
 
     db.commit()
 
     try:
         db.execute(text("SELECT pg_reload_conf()"))
     except Exception as e:
+        db.rollback()
         errors.append(f"Reload failed: {str(e)}")
 
-    restart_query = text("SELECT name FROM pg_settings WHERE pending_restart = true")
-    restart_rows = db.execute(restart_query).fetchall()
-    restart_required = [row[0] for row in restart_rows]
+    try:
+        restart_query = text("SELECT name FROM pg_settings WHERE pending_restart = true")
+        restart_rows = db.execute(restart_query).fetchall()
+        restart_required = [row[0] for row in restart_rows]
+    except Exception as e:
+        db.rollback()
+        restart_required = []
+        errors.append(f"Failed to check pending restarts: {str(e)}")
 
     return {
-        "status": "success",
-        "message": "Applied",
+        "status": "success" if not errors else "partial_success",
+        "message": "Configuration applied process completed.",
         "applied_count": len(applied_keys),
         "restart_required_params": restart_required,
         "errors": errors
