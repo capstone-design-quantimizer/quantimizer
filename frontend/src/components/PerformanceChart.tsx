@@ -18,7 +18,6 @@ const formatKST = (d: Date | string) => {
 };
 
 const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 300 }) => {
-    // Data Preparation
     const sortedData = useMemo(() => {
         return [...executions].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     }, [executions]);
@@ -35,48 +34,41 @@ const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 30
         );
     }
 
-    // Determine Ranges
     const timestamps = sortedData.map(d => new Date(d.created_at).getTime());
     const logTimestamps = sortedLogs.map(l => new Date(l.applied_at).getTime());
     
     const minTime = Math.min(...timestamps, ...(logTimestamps.length ? logTimestamps : [Infinity]));
     const maxTime = Math.max(...timestamps, ...(logTimestamps.length ? logTimestamps : [-Infinity]));
     
-    // Add padding to time range (5%)
     const timePadding = (maxTime - minTime) * 0.05 || 1000 * 60 * 60; 
     const xMin = minTime - timePadding;
     const xMax = maxTime + timePadding;
     const timeRange = xMax - xMin;
 
     const execTimes = sortedData.map(d => d.execution_time_ms);
-    const maxExecTime = Math.max(...execTimes, 0) * 1.1; // 10% top padding
+    const maxExecTime = Math.max(...execTimes, 0) * 1.1; 
     const yRange = maxExecTime || 100;
 
-    // SVG Dimensions
-    const padding = { top: 30, bottom: 30, left: 50, right: 30 };
+    const padding = { top: 30, bottom: 40, left: 50, right: 30 };
     const svgW = 1000;
     const svgH = height;
     const graphW = svgW - padding.left - padding.right;
     const graphH = svgH - padding.top - padding.bottom;
 
-    // Coordinate Helpers
     const getX = (t: number) => padding.left + ((t - xMin) / timeRange) * graphW;
     const getY = (v: number) => padding.top + graphH - (v / yRange) * graphH;
 
-    // Generate Path for Execution Time
     const linePath = sortedData.map((d, i) => {
         const x = getX(new Date(d.created_at).getTime());
         const y = getY(d.execution_time_ms);
         return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
     }).join(" ");
 
-    // Y-Axis Ticks
     const yTicks = [0, 0.25, 0.5, 0.75, 1].map(r => {
         const val = yRange * r;
         return { y: getY(val), val };
     });
 
-    // X-Axis Ticks (Approx 5 ticks)
     const xTickCount = 5;
     const xTicks = Array.from({ length: xTickCount }).map((_, i) => {
         const val = xMin + (timeRange * (i / (xTickCount - 1)));
@@ -84,9 +76,8 @@ const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 30
     });
 
     return (
-        <div style={{ position: 'relative', width: '100%', height }}>
-            <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-                {/* Grid Lines Y */}
+        <div style={{ position: 'relative', width: '100%' }}>
+            <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" style={{ width: '100%', height: height, overflow: 'visible' }}>
                 {yTicks.map((tick, i) => (
                     <g key={`y-${i}`}>
                         <line x1={padding.left} y1={tick.y} x2={svgW - padding.right} y2={tick.y} stroke="#eaeaea" strokeDasharray="3" />
@@ -96,7 +87,6 @@ const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 30
                     </g>
                 ))}
 
-                {/* Grid Lines X */}
                 {xTicks.map((tick, i) => (
                     <g key={`x-${i}`}>
                         <text x={tick.x} y={svgH - 5} textAnchor="middle" fontSize="10" fill="#888">
@@ -105,7 +95,6 @@ const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 30
                     </g>
                 ))}
 
-                {/* Tuning Event Markers */}
                 {sortedLogs.map((log, i) => {
                     const x = getX(new Date(log.applied_at).getTime());
                     if (x < padding.left || x > svgW - padding.right) return null;
@@ -120,10 +109,8 @@ const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 30
                     );
                 })}
 
-                {/* Execution Line */}
                 <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 
-                {/* Data Points */}
                 {sortedData.map((d, i) => {
                     const x = getX(new Date(d.created_at).getTime());
                     const y = getY(d.execution_time_ms);
@@ -135,8 +122,7 @@ const PerformanceChart: React.FC<Props> = ({ executions, tuningLogs, height = 30
                 })}
             </svg>
             
-            {/* Legend */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 4, fontSize: 11 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8, fontSize: 11 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <div style={{ width: 8, height: 2, background: '#2563eb' }}></div>
                     <span>Execution Time (ms)</span>

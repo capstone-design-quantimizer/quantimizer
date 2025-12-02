@@ -31,27 +31,23 @@ const formatKST = (dateString: string) => {
 const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
     const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'tuning' | 'workload' | 'monitor'>('stats');
 
-    // --- Stats & Users ---
     const [stats, setStats] = useState<AdminDashboardStats | null>(null);
     const [users, setUsers] = useState<UserSummary[]>([]);
 
-    // --- Tuning ---
     const [tuneFile, setTuneFile] = useState<File | null>(null);
     const [tuneResult, setTuneResult] = useState<DBTuneResult | null>(null);
     const [tuningLogs, setTuningLogs] = useState<DBTuningLog[]>([]);
     const [tuningLoading, setTuningLoading] = useState(false);
 
-    // --- Workload ---
     const [workloads, setWorkloads] = useState<Workload[]>([]);
     const [executions, setExecutions] = useState<WorkloadExecution[]>([]);
     const [wlForm, setWlForm] = useState({ name: '', description: '', count: 100 });
     const [wlLoading, setWlLoading] = useState(false);
     const [selectedWorkloadForQueries, setSelectedWorkloadForQueries] = useState<Workload | null>(null);
 
-    // --- Monitor ---
     const [selectedExecution, setSelectedExecution] = useState<WorkloadExecution | null>(null);
+    const [monitorWorkloadId, setMonitorWorkloadId] = useState<string>('ALL');
 
-    // --- Load Data Helpers ---
     const loadStats = async () => {
         try {
             const res = await api('/admin/dashboard/stats');
@@ -87,7 +83,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         } catch (e) { console.error(e); }
     };
 
-    // --- Effects ---
     useEffect(() => {
         if (activeTab === 'stats') loadStats();
         if (activeTab === 'users') loadUsers();
@@ -96,11 +91,10 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         if (activeTab === 'monitor') {
             loadWorkloads();
             loadExecutions();
-            loadTuningLogs(); // Load tuning logs for the chart
+            loadTuningLogs();
         }
     }, [activeTab]);
 
-    // --- Handlers: Tuning ---
     const handleTuneUpload = async () => {
         if (!tuneFile) return Swal.fire("알림", "파일을 선택해주세요.", "warning");
         setTuningLoading(true);
@@ -152,7 +146,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         }
     };
 
-    // --- Handlers: Workload ---
     const handleCreateWorkload = async () => {
         if (!wlForm.name) return Swal.fire("알림", "워크로드 이름을 입력하세요.", "warning");
         setWlLoading(true);
@@ -216,7 +209,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         }
     };
 
-    // --- Enriched Data ---
     const enrichedExecutions = useMemo(() => {
         return executions.map(e => ({
             ...e,
@@ -224,7 +216,11 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         }));
     }, [executions, workloads]);
 
-    // --- Components ---
+    const filteredExecutions = useMemo(() => {
+        if (monitorWorkloadId === 'ALL') return enrichedExecutions;
+        return enrichedExecutions.filter(e => e.workload_id === monitorWorkloadId);
+    }, [enrichedExecutions, monitorWorkloadId]);
+
     const StatCard = ({ label, value, unit, color }: { label: string, value: string | number, unit?: string, color?: string }) => (
         <div style={{ background: '#f9fafb', borderRadius: 12, padding: '20px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
             <span style={{ fontSize: 13, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.025em', marginBottom: 8 }}>{label}</span>
@@ -273,7 +269,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             </header>
 
             <main className="main-content">
-                {/* 1. Dashboard Stats */}
                 {activeTab === 'stats' && stats && (
                     <>
                         <h2 className="section-title">서비스 현황</h2>
@@ -298,7 +293,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                     </>
                 )}
 
-                {/* 2. User Management */}
                 {activeTab === 'users' && (
                     <div className="card">
                         <div className="card__header">가입 사용자 목록</div>
@@ -321,7 +315,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                     </div>
                 )}
 
-                {/* 3. DB Tuning */}
                 {activeTab === 'tuning' && (
                     <div className="builder-split-view">
                         <div className="card" style={{ flex: 1 }}>
@@ -352,14 +345,11 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             <div className="card__header">튜닝 이력 및 복원</div>
                             <div className="table-wrapper">
                                 <table className="table">
-                                    {/* Requirement 3: Change '적용자' to '파일명' */}
                                     <thead><tr><th>적용 일시</th><th>파일명</th><th>상태</th><th>관리</th></tr></thead>
                                     <tbody>
                                         {tuningLogs.map(log => (
                                             <tr key={log.id}>
-                                                {/* Requirement 4: Use KST */}
                                                 <td>{formatKST(log.applied_at)}</td>
-                                                {/* Requirement 3: Show filename (or fallback to applied_by if filename missing) */}
                                                 <td>{log.filename || log.applied_by}</td>
                                                 <td>
                                                     {log.is_reverted ? <span style={{color: '#999'}}>복원됨</span> : <span style={{color: 'green'}}>적용 중</span>}
@@ -384,7 +374,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                     </div>
                 )}
 
-                {/* 4. Workloads */}
                 {activeTab === 'workload' && (
                     <div className="builder-split-view">
                         <div className="card" style={{ flex: 1 }}>
@@ -421,14 +410,25 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                     </div>
                 )}
 
-                {/* 5. Monitor */}
                 {activeTab === 'monitor' && (
                     <div className="form-stack">
                         <div className="card">
-                            <div className="card__header">성능 모니터링 (Execution Time & Events)</div>
+                            <div className="card__header">
+                                <span>성능 모니터링 (Execution Time & Events)</span>
+                                <select 
+                                    className="select" 
+                                    style={{ width: 240, height: 32, fontSize: 12 }} 
+                                    value={monitorWorkloadId} 
+                                    onChange={e => setMonitorWorkloadId(e.target.value)}
+                                >
+                                    <option value="ALL">전체 워크로드 보기</option>
+                                    {workloads.map(w => (
+                                        <option key={w.id} value={w.id}>{w.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <div className="card__body">
-                                {/* Requirement 1: Use PerformanceChart */}
-                                <PerformanceChart executions={enrichedExecutions} tuningLogs={tuningLogs} height={300} />
+                                <PerformanceChart executions={filteredExecutions} tuningLogs={tuningLogs} height={300} />
                             </div>
                         </div>
 
@@ -438,9 +438,8 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                                 <table className="table">
                                     <thead><tr><th>실행 일시</th><th>워크로드</th><th>소요 시간</th><th>Hit Ratio</th><th>I/O Read</th><th>관리</th></tr></thead>
                                     <tbody>
-                                        {enrichedExecutions.map(e => (
+                                        {filteredExecutions.map(e => (
                                             <tr key={e.id} style={{background: selectedExecution?.id === e.id ? '#f0f7ff' : 'transparent'}}>
-                                                {/* Requirement 4: Use KST */}
                                                 <td>{formatKST(e.created_at)}</td>
                                                 <td style={{fontWeight: 600}}>{e.workload_name}</td>
                                                 <td>{e.execution_time_ms.toFixed(2)} ms</td>
@@ -461,7 +460,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                 )}
             </main>
 
-            {/* Queries Modal */}
             {selectedWorkloadForQueries && (
                 <Modal title={`워크로드 쿼리 목록 (${selectedWorkloadForQueries.name})`} onClose={() => setSelectedWorkloadForQueries(null)} width={900}>
                     <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -491,14 +489,11 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                 </Modal>
             )}
 
-            {/* Analysis Modal (Improved UI) */}
             {selectedExecution && (
                 <Modal title="성능 상세 분석" onClose={() => setSelectedExecution(null)} width={1000}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-                        {/* Header Section */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 24, borderBottom: '1px solid #eaeaea' }}>
                             <div>
-                                {/* Requirement 2: Show Workload Name instead of ID */}
                                 <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Workload Name</div>
                                 <div style={{ fontFamily: 'var(--font-sans)', fontSize: 16, fontWeight: 700, color: '#111' }}>
                                     {selectedExecution.workload_name || 'Unknown Workload'}
@@ -507,12 +502,10 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             </div>
                             <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Executed At (KST)</div>
-                                {/* Requirement 4: Use KST */}
                                 <div style={{ fontWeight: 600 }}>{formatKST(selectedExecution.created_at)}</div>
                             </div>
                         </div>
 
-                        {/* Metrics Grid */}
                         <div>
                             <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#111827' }}>📊 Performance Metrics</h4>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
@@ -559,7 +552,6 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             </div>
                         </div>
 
-                        {/* Config Snapshot */}
                         <div>
                             <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#111827' }}>⚙️ DB Parameter Snapshot</h4>
                             <div style={{ 
