@@ -329,7 +329,7 @@ export default function App() {
     return (
       <div className="auth-container" style={{background: '#111'}}>
         <div className="auth-card" style={{borderColor: '#333', background: '#222', color: '#fff'}}>
-          <h2 style={{marginBottom: 8, fontSize: '1.8rem', color: '#fff'}}>Admin Portal</h2>
+          <h2 style={{marginBottom: 8, fontSize: '1.8rem', color: '#fff'}}>Admin Page</h2>
           <p style={{color: '#888', marginBottom: 32}}>System Administration</p>
           <form onSubmit={handleAdminLogin} style={{display:'flex', flexDirection:'column', gap:16}}>
             <input 

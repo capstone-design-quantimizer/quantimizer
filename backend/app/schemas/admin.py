@@ -38,6 +38,18 @@ class WorkloadExecutionRead(BaseModel):
     class Config:
         orm_mode = True
 
+class DBTuningLogRead(BaseModel):
+    id: uuid.UUID
+    applied_by: str
+    applied_at: datetime
+    target_config: Dict[str, Any]
+    backup_config: Dict[str, Any]
+    is_reverted: bool
+    reverted_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
 class AdminLoginRequest(BaseModel):
     email: str
     password: str

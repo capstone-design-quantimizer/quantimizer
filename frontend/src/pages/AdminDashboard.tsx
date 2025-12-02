@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import type { 
     DBTuneResult, 
+    DBTuningLog,
     Workload, 
     WorkloadExecution, 
     EquityPoint,
@@ -19,24 +20,23 @@ interface Props {
 const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
     const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'tuning' | 'workload' | 'monitor'>('stats');
 
-    // --- State: Stats ---
+    // --- Stats & Users ---
     const [stats, setStats] = useState<AdminDashboardStats | null>(null);
-
-    // --- State: Users ---
     const [users, setUsers] = useState<UserSummary[]>([]);
 
-    // --- State: Tuning ---
+    // --- Tuning ---
     const [tuneFile, setTuneFile] = useState<File | null>(null);
     const [tuneResult, setTuneResult] = useState<DBTuneResult | null>(null);
+    const [tuningLogs, setTuningLogs] = useState<DBTuningLog[]>([]);
     const [tuningLoading, setTuningLoading] = useState(false);
 
-    // --- State: Workload ---
+    // --- Workload ---
     const [workloads, setWorkloads] = useState<Workload[]>([]);
     const [executions, setExecutions] = useState<WorkloadExecution[]>([]);
     const [wlForm, setWlForm] = useState({ name: '', description: '', count: 100 });
     const [wlLoading, setWlLoading] = useState(false);
 
-    // --- State: Monitor ---
+    // --- Monitor ---
     const [selectedExecution, setSelectedExecution] = useState<WorkloadExecution | null>(null);
 
     // --- Load Data Helpers ---
@@ -51,6 +51,13 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         try {
             const res = await api('/admin/users');
             if (res.ok) setUsers(await res.json());
+        } catch (e) { console.error(e); }
+    };
+
+    const loadTuningLogs = async () => {
+        try {
+            const res = await api('/admin/tune/logs');
+            if (res.ok) setTuningLogs(await res.json());
         } catch (e) { console.error(e); }
     };
 
@@ -72,6 +79,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
     useEffect(() => {
         if (activeTab === 'stats') loadStats();
         if (activeTab === 'users') loadUsers();
+        if (activeTab === 'tuning') loadTuningLogs();
         if (activeTab === 'workload') loadWorkloads();
         if (activeTab === 'monitor') {
             loadWorkloads();
@@ -89,6 +97,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             const res = await api("/admin/tune", { method: "POST", body: formData });
             if (res.ok) {
                 setTuneResult(await res.json());
+                loadTuningLogs();
                 Swal.fire("성공", "DB 설정이 적용되었습니다.", "success");
             } else {
                 Swal.fire("실패", "적용 실패", "error");
@@ -97,6 +106,35 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             Swal.fire("오류", "업로드 중 오류 발생", "error");
         } finally {
             setTuningLoading(false);
+        }
+    };
+
+    const handleRestore = async (logId: string) => {
+        const r = await Swal.fire({
+            title: '설정 복원',
+            text: "이전 설정으로 되돌리시겠습니까?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '복원',
+            cancelButtonText: '취소'
+        });
+
+        if (r.isConfirmed) {
+            setTuningLoading(true);
+            try {
+                const res = await api(`/admin/tune/${logId}/restore`, { method: "POST" });
+                if (res.ok) {
+                    await res.json();
+                    loadTuningLogs();
+                    Swal.fire("완료", "설정이 복원되었습니다.", "success");
+                } else {
+                    Swal.fire("실패", "복원 중 오류 발생", "error");
+                }
+            } catch {
+                Swal.fire("오류", "네트워크 오류", "error");
+            } finally {
+                setTuningLoading(false);
+            }
         }
     };
 
@@ -256,28 +294,60 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
 
                 {/* 3. DB Tuning */}
                 {activeTab === 'tuning' && (
-                    <div className="card">
-                        <div className="card__header">Knob 튜닝 자동화</div>
-                        <div className="card__body">
-                            <p className="card-desc">AI 모델이 추천한 JSON 설정 파일을 업로드하여 PostgreSQL 설정을 변경합니다.</p>
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 24 }}>
-                                <input type="file" accept=".json" onChange={e => { if (e.target.files?.[0]) setTuneFile(e.target.files[0]); }} className="input" style={{ paddingTop: 6, height: 40 }} />
-                                <button className="btn btn--primary" onClick={handleTuneUpload} disabled={tuningLoading || !tuneFile}>
-                                    {tuningLoading ? '적용 중...' : '설정 적용하기'}
-                                </button>
-                            </div>
-                            {tuneResult && (
-                                <div style={{ padding: 20, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                                    <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>적용 결과</h4>
-                                    <div className="form-stack">
-                                        <div>적용된 파라미터: <b>{tuneResult.applied_count}개</b></div>
-                                        {tuneResult.restart_required_params.length > 0 && (
-                                            <div style={{ color: '#e00', fontSize: 13 }}>⚠️ 재시작 필요: {tuneResult.restart_required_params.join(", ")}</div>
-                                        )}
-                                        {tuneResult.restart_required_params.length === 0 && <div style={{ color: 'green' }}>✅ 재시작 필요 없음</div>}
-                                    </div>
+                    <div className="builder-split-view">
+                        <div className="card" style={{ flex: 1 }}>
+                            <div className="card__header">Knob 튜닝 자동화</div>
+                            <div className="card__body">
+                                <p className="card-desc">AI 모델이 추천한 JSON 설정 파일을 업로드하여 PostgreSQL 설정을 변경합니다.</p>
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 24 }}>
+                                    <input type="file" accept=".json" onChange={e => { if (e.target.files?.[0]) setTuneFile(e.target.files[0]); }} className="input" style={{ paddingTop: 6, height: 40 }} />
+                                    <button className="btn btn--primary" onClick={handleTuneUpload} disabled={tuningLoading || !tuneFile}>
+                                        {tuningLoading ? '적용 중...' : '설정 적용하기'}
+                                    </button>
                                 </div>
-                            )}
+                                {tuneResult && (
+                                    <div style={{ padding: 20, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                                        <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>최근 적용 결과</h4>
+                                        <div className="form-stack">
+                                            <div>적용된 파라미터: <b>{tuneResult.applied_count}개</b></div>
+                                            {tuneResult.restart_required_params.length > 0 && (
+                                                <div style={{ color: '#e00', fontSize: 13 }}>⚠️ 재시작 필요: {tuneResult.restart_required_params.join(", ")}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ flex: 1 }}>
+                            <div className="card__header">튜닝 이력 및 복원</div>
+                            <div className="table-wrapper">
+                                <table className="table">
+                                    <thead><tr><th>적용 일시</th><th>적용자</th><th>상태</th><th>관리</th></tr></thead>
+                                    <tbody>
+                                        {tuningLogs.map(log => (
+                                            <tr key={log.id}>
+                                                <td>{new Date(log.applied_at).toLocaleString()}</td>
+                                                <td>{log.applied_by}</td>
+                                                <td>
+                                                    {log.is_reverted ? <span style={{color: '#999'}}>복원됨</span> : <span style={{color: 'green'}}>적용 중</span>}
+                                                </td>
+                                                <td>
+                                                    {!log.is_reverted && (
+                                                        <button 
+                                                            className="btn btn--danger btn--sm" 
+                                                            onClick={() => handleRestore(log.id)}
+                                                            disabled={tuningLoading}
+                                                        >
+                                                            ↩ 복원
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -371,7 +441,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             )}
                         </div>
                         <div>
-                            <h4 style={{marginBottom: 12}}>⚙️ 당시 DB 파라미터 스냅샷</h4>
+                            <h4 style={{marginBottom: 12}}>⚙️ DB 파라미터 스냅샷</h4>
                             <div style={{ maxHeight: '300px', overflowY: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 6, fontSize: 12 }}>
                                 <pre style={{margin: 0}}>{JSON.stringify(selectedExecution.db_config_snapshot, null, 2)}</pre>
                             </div>

@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.admin import Workload, WorkloadExecution
+from app.models.admin import Workload, WorkloadExecution, DBTuningLog
 from app.services.strategy_execution import (
     _build_scored_sql,
     UniverseSpec,
@@ -20,16 +20,41 @@ from app.services.strategy_execution import (
 )
 
 
-def apply_db_configuration(db: Session, config: Dict[str, Any]) -> Dict[str, Any]:
-    best_config = config.get("best_configuration", {})
+def _get_current_params(db: Session, keys: List[str]) -> Dict[str, str]:
+    if not keys:
+        return {}
+    
+    # PostgreSQL specific query to get current settings
+    # We use pg_settings to get the actual runtime value
+    params_str = ",".join([f"'{k}'" for k in keys])
+    query = text(f"SELECT name, setting FROM pg_settings WHERE name IN ({params_str})")
+    rows = db.execute(query).fetchall()
+    return {row[0]: row[1] for row in rows}
+
+
+def apply_db_configuration(db: Session, config: Dict[str, Any], applied_by: str = "system") -> Dict[str, Any]:
+    best_config = config.get("best_configuration", config) # Handle both wrapped and raw format
     if not best_config:
-        raise ValueError("Invalid JSON: 'best_configuration' missing")
+        raise ValueError("Invalid configuration data")
 
     applied_system_keys: List[str] = []
     applied_session_keys: List[str] = []
     errors: List[str] = []
     key_pattern = re.compile(r"^[a-z0-9_]+$")
 
+    # 1. Capture Backup (Snapshot of current values for keys about to be changed)
+    target_keys = [k for k in best_config.keys() if key_pattern.match(k)]
+    backup_config = _get_current_params(db, target_keys)
+
+    # 2. Save Log (Before applying)
+    log_entry = DBTuningLog(
+        applied_by=applied_by,
+        target_config=best_config,
+        backup_config=backup_config
+    )
+    db.add(log_entry)
+    
+    # 3. Apply Configuration
     valid_names = None
     try:
         rows = db.execute(text("SELECT name FROM pg_settings")).fetchall()
@@ -38,9 +63,8 @@ def apply_db_configuration(db: Session, config: Dict[str, Any]) -> Dict[str, Any
         errors.append(f"Failed to load pg_settings: {str(e)}")
 
     for key, value in best_config.items():
-        if not key_pattern.match(key):
-            errors.append(f"Skipped invalid key format: {key}")
-            continue
+        if key not in target_keys:
+            continue # Skipped invalid pattern earlier
 
         if valid_names is not None and key not in valid_names:
             errors.append(f"Skipped unknown parameter: {key}")
@@ -71,6 +95,7 @@ def apply_db_configuration(db: Session, config: Dict[str, Any]) -> Dict[str, Any
         db.rollback()
         errors.append(f"Final commit failed: {str(e)}")
 
+    # 4. Reload Config
     restart_required: List[str] = []
     if applied_system_keys:
         try:
@@ -86,26 +111,35 @@ def apply_db_configuration(db: Session, config: Dict[str, Any]) -> Dict[str, Any
             errors.append(f"Reload or pending restart check failed: {str(e)}")
 
     total_applied = len(applied_system_keys) + len(applied_session_keys)
-    if errors and total_applied == 0:
-        status = "failed"
-    elif errors:
-        status = "partial_success"
-    else:
-        status = "success"
+    status = "failed" if errors and total_applied == 0 else "partial_success" if errors else "success"
 
     return {
         "status": status,
         "message": "Configuration apply process completed.",
         "applied_count": total_applied,
-        "applied_system_count": len(applied_system_keys),
-        "applied_session_count": len(applied_session_keys),
-        "applied_system_params": applied_system_keys,
-        "applied_session_params": applied_session_keys,
         "restart_required_params": restart_required,
         "errors": errors,
     }
 
+def restore_db_configuration(db: Session, log_id: str, applied_by: str) -> Dict[str, Any]:
+    log = db.query(DBTuningLog).filter(DBTuningLog.id == log_id).first()
+    if not log:
+        raise ValueError("Log not found")
+    
+    if log.is_reverted:
+        raise ValueError("Already reverted")
 
+    # Apply the backup configuration
+    result = apply_db_configuration(db, log.backup_config, applied_by=f"{applied_by} (Restore)")
+    
+    # Update log status
+    log.is_reverted = True
+    log.reverted_at = datetime.now()
+    db.commit()
+
+    return result
+
+# ... (Existing workload functions remain unchanged) ...
 def _generate_random_workload_queries(count: int) -> List[Dict[str, Any]]:
     queries = []
     factor_keys = list(FACTOR_COLUMN_MAP.keys())
@@ -205,6 +239,7 @@ def execute_workload(db: Session, workload_id: str) -> WorkloadExecution:
     end_time = time.perf_counter()
     duration_ms = (end_time - start_time) * 1000
 
+    # Measure Stats After
     post_stats = _get_pg_stats(db)
 
     metrics = {}

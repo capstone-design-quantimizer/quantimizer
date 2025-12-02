@@ -9,7 +9,7 @@ import uuid
 from app.db.session import get_db
 from app.core.security import get_current_user, create_access_token, verify_password
 from app.models.user import User
-from app.models.admin import Workload, WorkloadExecution
+from app.models.admin import Workload, WorkloadExecution, DBTuningLog
 from app.models.backtest import BacktestResult
 from app.models.strategy import Strategy
 from app.models.community import CommunityPost
@@ -21,9 +21,10 @@ from app.schemas.admin import (
     AdminDashboardStats,
     AdminLoginRequest,
     AdminLoginResponse,
-    UserSummary
+    UserSummary,
+    DBTuningLogRead
 )
-from app.services.admin_service import apply_db_configuration, create_workload, execute_workload
+from app.services.admin_service import apply_db_configuration, create_workload, execute_workload, restore_db_configuration
 from app.services.users import get_user_by_email
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -55,6 +56,8 @@ def admin_login(
     
     return {"access_token": access_token, "token_type": "bearer"}
 
+# --- DB Tuning ---
+
 @router.post("/tune", response_model=DBTuneResult)
 async def tune_database(
     file: UploadFile = File(...),
@@ -65,9 +68,34 @@ async def tune_database(
     try:
         content = await file.read()
         config_data = json.loads(content)
-        return apply_db_configuration(db, config_data)
+        # Pass admin email for logging
+        return apply_db_configuration(db, config_data, applied_by=current_user.email)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/tune/logs", response_model=List[DBTuningLogRead])
+def list_tuning_logs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_admin(current_user)
+    return db.query(DBTuningLog).order_by(DBTuningLog.applied_at.desc()).all()
+
+@router.post("/tune/{log_id}/restore", response_model=DBTuneResult)
+def restore_tuning(
+    log_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_admin(current_user)
+    try:
+        return restore_db_configuration(db, str(log_id), applied_by=current_user.email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Workloads ---
 
 @router.post("/workloads", response_model=WorkloadRead)
 def create_new_workload(
@@ -121,6 +149,8 @@ def list_executions(
     check_admin(current_user)
     execs = db.query(WorkloadExecution).order_by(WorkloadExecution.created_at.desc()).all()
     return execs
+
+# --- Dashboard & User ---
 
 @router.get("/dashboard/stats", response_model=AdminDashboardStats)
 def get_dashboard_stats(

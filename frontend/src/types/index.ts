@@ -64,6 +64,16 @@ export interface DBTuneResult {
     errors: string[];
 }
 
+export interface DBTuningLog {
+    id: string;
+    applied_by: string;
+    applied_at: string;
+    target_config: Record<string, any>;
+    backup_config: Record<string, any>;
+    is_reverted: boolean;
+    reverted_at?: string;
+}
+
 export interface Workload {
     id: string;
     name: string;

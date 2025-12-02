@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -24,13 +24,23 @@ class WorkloadExecution(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workload_id = Column(UUID(as_uuid=True), ForeignKey("workloads.id"), nullable=False)
-    
     execution_time_ms = Column(Float, nullable=False)
-    
     db_config_snapshot = Column(JSONB, nullable=False)
-    
     extended_metrics = Column(JSONB, nullable=True)
-    
     created_at = Column(DateTime, default=datetime.now)
 
     workload = relationship("Workload", back_populates="executions")
+
+class DBTuningLog(Base):
+    __tablename__ = "db_tuning_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    applied_by = Column(String, nullable=False)  # Admin username or email
+    applied_at = Column(DateTime, default=datetime.now)
+    
+    target_config = Column(JSONB, nullable=False)
+
+    backup_config = Column(JSONB, nullable=False)
+    
+    is_reverted = Column(Boolean, default=False)
+    reverted_at = Column(DateTime, nullable=True)
