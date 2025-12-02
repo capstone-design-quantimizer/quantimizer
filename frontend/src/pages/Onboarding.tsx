@@ -1,27 +1,107 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 import imgBuilder from '../assets/onboarding/builder.png';
 import imgCommunity from '../assets/onboarding/community.png';
 import imgCompare from '../assets/onboarding/compare.png';
 import imgPrediction from '../assets/onboarding/prediction.png';
 
+const useCountUp = (end: number, duration: number = 2000, start: boolean = false) => {
+    const [count, setCount] = useState(0);
+
+    useEffect(() => {
+        if (!start) return;
+
+        let startTime: number | null = null;
+        const startValue = 0;
+        
+        const step = (timestamp: number) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            
+            const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+            
+            setCount(Math.floor(easeProgress * (end - startValue) + startValue));
+
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+
+        window.requestAnimationFrame(step);
+    }, [end, duration, start]);
+
+    return count;
+};
+
+const ScrollRevealSection: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => {
+    const [isVisible, setIsVisible] = useState(false);
+    const domRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => setIsVisible(entry.isIntersecting));
+        }, { threshold: 0.15 });
+
+        const currentElement = domRef.current;
+        if (currentElement) observer.observe(currentElement);
+
+        return () => {
+            if (currentElement) observer.unobserve(currentElement);
+        };
+    }, []);
+
+    return (
+        <div 
+            ref={domRef}
+            className={`${className} ${isVisible ? 'in-view' : ''}`}
+        >
+            {children}
+        </div>
+    );
+};
+
 interface Props {
     onStart: () => void;
 }
 
+const FACTORS_LIST = [
+    'PER', 'PBR', 'RSI_14', 'Momentum', 'Volatility', 'Beta', 'Sharpe', 
+    'EPS Growth', 'ROE', 'Debt/Equity', 'Moving Average', 'MACD', 
+    'Bollinger Bands', 'Stochastic', 'OBV', 'ATR', 'Dividend Yield'
+];
+
 const Onboarding: React.FC<Props> = ({ onStart }) => {
-    const [isVisible, setIsVisible] = useState(false);
+    const [pageLoaded, setPageLoaded] = useState(false);
+    
+    const [statsVisible, setStatsVisible] = useState(false);
+    const statsRef = useRef<HTMLDivElement>(null);
+
+    const strategyCount = useCountUp(12850000, 2500, statsVisible);
+    const backtestCount = useCountUp(84200, 2000, statsVisible);
+    const accuracyCount = useCountUp(94, 1500, statsVisible);
 
     useEffect(() => {
-        setIsVisible(true);
+        setPageLoaded(true);
+
+        const observer = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                setStatsVisible(true);
+                observer.disconnect();
+            }
+        }, { threshold: 0.2 });
+
+        if (statsRef.current) {
+            observer.observe(statsRef.current);
+        }
+
+        return () => observer.disconnect();
     }, []);
 
     return (
         <div className="onboarding-container">
-            <div className="onboarding-bg-gradient" />
+            <div className="onboarding-bg-orb" />
             
-            {/* Hero Section */}
-            <div className={`onboarding-hero ${isVisible ? 'animate-fade-up' : ''}`}>
+            <div className={`onboarding-hero ${pageLoaded ? 'animate-fade-up' : ''}`}>
                 <div className="hero-badge">Ver 2.0 AI Update</div>
                 <h1 className="onboarding-title">
                     데이터와 AI가 만드는<br />
@@ -37,11 +117,38 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 </button>
             </div>
 
-            {/* Feature Sections */}
-            <div className={`onboarding-features ${isVisible ? 'animate-fade-up-delay' : ''}`}>
+            <div className={`factor-ticker-wrapper ${pageLoaded ? 'animate-fade-up-delay' : ''}`}>
+                <div className="factor-ticker-track">
+                    {[...FACTORS_LIST, ...FACTORS_LIST, ...FACTORS_LIST].map((factor, i) => (
+                        <div key={i} className="factor-pill">{factor}</div>
+                    ))}
+                </div>
+            </div>
+
+            <div ref={statsRef} className="stat-grid-container">
+                <div className="stat-card">
+                    <div className="stat-value">
+                        {strategyCount.toLocaleString()}+
+                    </div>
+                    <div className="stat-label">생성 가능한 전략 조합</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-value">
+                        {backtestCount.toLocaleString()}
+                    </div>
+                    <div className="stat-label">누적 백테스트 실행</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-value">
+                        {accuracyCount}%
+                    </div>
+                    <div className="stat-label">AI 트렌드 예측 정확도</div>
+                </div>
+            </div>
+
+            <div className="onboarding-features">
                 
-                {/* Feature 1: AI Prediction (New) */}
-                <div className="feature-section ai-section">
+                <ScrollRevealSection className="feature-section ai-section">
                     <div className="feature-content">
                         <div className="feature-icon-wrapper ai-icon">
                             <span className="feature-icon">🤖</span>
@@ -60,14 +167,13 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                         </ul>
                     </div>
                     <div className="feature-visual ai-visual">
-                        <img src={imgPrediction} alt="AI 예측 대시보드" className="feature-img shadow-lg" />
+                        <img src={imgPrediction} alt="AI 예측 대시보드" className="feature-img shadow-lg animate-float" />
                     </div>
-                </div>
+                </ScrollRevealSection>
 
-                {/* Feature 2: Strategy Builder */}
-                <div className="feature-section">
+                <ScrollRevealSection className="feature-section">
                     <div className="feature-visual">
-                        <img src={imgBuilder} alt="노코딩 전략 빌더" className="feature-img" />
+                        <img src={imgBuilder} alt="노코딩 전략 빌더" className="feature-img animate-float" style={{ animationDelay: '1s' }} />
                     </div>
                     <div className="feature-content">
                         <div className="feature-icon-wrapper">
@@ -79,13 +185,17 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                             재무 데이터부터 기술적 지표까지, 블록을 조립하듯 
                             팩터를 연결하면 나만의 퀀트 엔진이 작동합니다.
                         </p>
+                        <ul className="feature-list">
+                            <li>20종 이상의 핵심 재무/기술적 팩터 제공</li>
+                            <li>드래그 앤 드롭으로 완성하는 로직</li>
+                            <li>실시간 문법 체크 및 가이드</li>
+                        </ul>
                     </div>
-                </div>
+                </ScrollRevealSection>
 
-                {/* Feature 3: Strategy Comparison */}
-                <div className="feature-section reverse">
+                <ScrollRevealSection className="feature-section reverse">
                     <div className="feature-visual">
-                        <img src={imgCompare} alt="전략 비교 분석" className="feature-img" />
+                        <img src={imgCompare} alt="전략 비교 분석" className="feature-img animate-float" style={{ animationDelay: '0.5s' }} />
                     </div>
                     <div className="feature-content">
                         <div className="feature-icon-wrapper">
@@ -98,12 +208,11 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                             시장 상황에 가장 견고한 최적의 모델을 선별할 수 있습니다.
                         </p>
                     </div>
-                </div>
+                </ScrollRevealSection>
 
-                {/* Feature 4: Community */}
-                <div className="feature-section">
+                <ScrollRevealSection className="feature-section">
                     <div className="feature-visual">
-                        <img src={imgCommunity} alt="커뮤니티" className="feature-img" />
+                        <img src={imgCommunity} alt="커뮤니티" className="feature-img animate-float" style={{ animationDelay: '1.5s' }} />
                     </div>
                     <div className="feature-content">
                         <div className="feature-icon-wrapper">
@@ -111,15 +220,14 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                         </div>
                         <h2 className="feature-heading">검증된 전략 라이브러리</h2>
                         <p className="feature-desc">
-                            상위 1% 랭커들의 전략을 확인하고 내 워크스페이스로 복사하세요.
-                            집단 지성이 만드는 강력한 수익 모델을 분석하고,
+                            상위 랭커들의 전략을 확인하고 내 워크스페이스로 복사하세요.
+                            전문가들이 만드는 강력한 수익 모델을 분석하고,
                             나만의 아이디어를 더해 발전시킬 수 있습니다.
                         </p>
                     </div>
-                </div>
+                </ScrollRevealSection>
             </div>
 
-            {/* CTA Footer */}
             <div className="onboarding-cta-footer">
                 <h2>지금 바로 데이터 기반 투자를 경험하세요</h2>
                 <p>복잡한 설치 없이 웹에서 즉시 시작할 수 있습니다.</p>
@@ -128,7 +236,6 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
                 </button>
             </div>
 
-            {/* Footer */}
             <div className="onboarding-footer">
                 <p>© 2025 QuantiMizer. All rights reserved.</p>
             </div>
