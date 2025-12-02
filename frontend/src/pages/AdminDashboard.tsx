@@ -5,17 +5,28 @@ import type {
     DBTuningLog,
     Workload, 
     WorkloadExecution, 
-    EquityPoint,
     AdminDashboardStats,
     UserSummary
 } from '../types/index';
-import EquityChart from '../components/EquityChart';
+import PerformanceChart from '../components/PerformanceChart'; 
 import { Modal } from '../components/Shared';
 
 interface Props {
     api: (url: string, opts?: any) => Promise<Response>;
     onLogout: () => void;
 }
+
+const formatKST = (dateString: string) => {
+    return new Date(dateString).toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+};
 
 const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
     const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'tuning' | 'workload' | 'monitor'>('stats');
@@ -85,6 +96,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         if (activeTab === 'monitor') {
             loadWorkloads();
             loadExecutions();
+            loadTuningLogs(); // Load tuning logs for the chart
         }
     }, [activeTab]);
 
@@ -99,6 +111,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             if (res.ok) {
                 setTuneResult(await res.json());
                 loadTuningLogs();
+                setTuneFile(null); 
                 Swal.fire("성공", "DB 설정이 적용되었습니다.", "success");
             } else {
                 Swal.fire("실패", "적용 실패", "error");
@@ -203,16 +216,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         }
     };
 
-    // --- Charts ---
-    const chartData: EquityPoint[] = useMemo(() => {
-        return executions
-            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-            .map(e => ({
-                date: e.created_at,
-                equity: e.execution_time_ms
-            }));
-    }, [executions]);
-
+    // --- Enriched Data ---
     const enrichedExecutions = useMemo(() => {
         return executions.map(e => ({
             ...e,
@@ -306,7 +310,7 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                                         <tr key={u.id}>
                                             <td>{u.email}</td>
                                             <td style={{fontWeight: 600}}>{u.username}</td>
-                                            <td>{new Date(u.joined_at).toLocaleDateString()}</td>
+                                            <td>{formatKST(u.joined_at)}</td>
                                             <td>{u.strategy_count}</td>
                                             <td>{u.backtest_count}</td>
                                         </tr>
@@ -348,12 +352,15 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             <div className="card__header">튜닝 이력 및 복원</div>
                             <div className="table-wrapper">
                                 <table className="table">
-                                    <thead><tr><th>적용 일시</th><th>적용자</th><th>상태</th><th>관리</th></tr></thead>
+                                    {/* Requirement 3: Change '적용자' to '파일명' */}
+                                    <thead><tr><th>적용 일시</th><th>파일명</th><th>상태</th><th>관리</th></tr></thead>
                                     <tbody>
                                         {tuningLogs.map(log => (
                                             <tr key={log.id}>
-                                                <td>{new Date(log.applied_at).toLocaleString()}</td>
-                                                <td>{log.applied_by}</td>
+                                                {/* Requirement 4: Use KST */}
+                                                <td>{formatKST(log.applied_at)}</td>
+                                                {/* Requirement 3: Show filename (or fallback to applied_by if filename missing) */}
+                                                <td>{log.filename || log.applied_by}</td>
                                                 <td>
                                                     {log.is_reverted ? <span style={{color: '#999'}}>복원됨</span> : <span style={{color: 'green'}}>적용 중</span>}
                                                 </td>
@@ -418,9 +425,10 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                 {activeTab === 'monitor' && (
                     <div className="form-stack">
                         <div className="card">
-                            <div className="card__header">성능 모니터링 (Execution Time)</div>
+                            <div className="card__header">성능 모니터링 (Execution Time & Events)</div>
                             <div className="card__body">
-                                <EquityChart data={chartData} height={300} />
+                                {/* Requirement 1: Use PerformanceChart */}
+                                <PerformanceChart executions={enrichedExecutions} tuningLogs={tuningLogs} height={300} />
                             </div>
                         </div>
 
@@ -432,7 +440,8 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                                     <tbody>
                                         {enrichedExecutions.map(e => (
                                             <tr key={e.id} style={{background: selectedExecution?.id === e.id ? '#f0f7ff' : 'transparent'}}>
-                                                <td>{new Date(e.created_at).toLocaleString()}</td>
+                                                {/* Requirement 4: Use KST */}
+                                                <td>{formatKST(e.created_at)}</td>
                                                 <td style={{fontWeight: 600}}>{e.workload_name}</td>
                                                 <td>{e.execution_time_ms.toFixed(2)} ms</td>
                                                 <td>{e.extended_metrics ? `${e.extended_metrics.buffer_hit_ratio}%` : '-'}</td>
@@ -489,12 +498,17 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                         {/* Header Section */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 24, borderBottom: '1px solid #eaeaea' }}>
                             <div>
-                                <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Workload Execution ID</div>
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600 }}>{selectedExecution.id}</div>
+                                {/* Requirement 2: Show Workload Name instead of ID */}
+                                <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Workload Name</div>
+                                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 16, fontWeight: 700, color: '#111' }}>
+                                    {selectedExecution.workload_name || 'Unknown Workload'}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>ID: {selectedExecution.workload_id}</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Executed At</div>
-                                <div style={{ fontWeight: 600 }}>{new Date(selectedExecution.created_at).toLocaleString()}</div>
+                                <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Executed At (KST)</div>
+                                {/* Requirement 4: Use KST */}
+                                <div style={{ fontWeight: 600 }}>{formatKST(selectedExecution.created_at)}</div>
                             </div>
                         </div>
 

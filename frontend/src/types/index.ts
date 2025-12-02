@@ -67,6 +67,7 @@ export interface DBTuneResult {
 export interface DBTuningLog {
     id: string;
     applied_by: string;
+    filename?: string; 
     applied_at: string;
     target_config: Record<string, any>;
     backup_config: Record<string, any>;

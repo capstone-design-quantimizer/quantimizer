@@ -57,8 +57,6 @@ def admin_login(
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- DB Tuning ---
-
 @router.post("/tune", response_model=DBTuneResult)
 async def tune_database(
     file: UploadFile = File(...),
@@ -69,7 +67,7 @@ async def tune_database(
     try:
         content = await file.read()
         config_data = json.loads(content)
-        return apply_db_configuration(db, config_data, applied_by=current_user.email)
+        return apply_db_configuration(db, config_data, applied_by=current_user.email, filename=file.filename)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -94,8 +92,6 @@ def restore_tuning(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# --- Workloads ---
 
 @router.post("/workloads", response_model=WorkloadRead)
 def create_new_workload(
@@ -169,8 +165,6 @@ def list_executions(
     check_admin(current_user)
     execs = db.query(WorkloadExecution).order_by(WorkloadExecution.created_at.desc()).all()
     return execs
-
-# --- Dashboard & User ---
 
 @router.get("/dashboard/stats", response_model=AdminDashboardStats)
 def get_dashboard_stats(

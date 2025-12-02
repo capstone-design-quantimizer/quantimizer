@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text, Boolean
+from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from app.db.session import Base
 
@@ -15,7 +16,7 @@ class Workload(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     queries = Column(JSONB, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     executions = relationship("WorkloadExecution", back_populates="workload", cascade="all, delete-orphan")
 
@@ -27,7 +28,7 @@ class WorkloadExecution(Base):
     execution_time_ms = Column(Float, nullable=False)
     db_config_snapshot = Column(JSONB, nullable=False)
     extended_metrics = Column(JSONB, nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     workload = relationship("Workload", back_populates="executions")
 
@@ -35,12 +36,13 @@ class DBTuningLog(Base):
     __tablename__ = "db_tuning_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    applied_by = Column(String, nullable=False)  # Admin username or email
-    applied_at = Column(DateTime, default=datetime.now)
+    applied_by = Column(String, nullable=False)
+    filename = Column(String, nullable=True)
+    applied_at = Column(DateTime(timezone=True), server_default=func.now())
     
     target_config = Column(JSONB, nullable=False)
 
     backup_config = Column(JSONB, nullable=False)
     
     is_reverted = Column(Boolean, default=False)
-    reverted_at = Column(DateTime, nullable=True)
+    reverted_at = Column(DateTime(timezone=True), nullable=True)
