@@ -106,7 +106,7 @@ const Onboarding: React.FC<Props> = ({ onStart }) => {
             
             {/* Hero Section */}
             <div className={`onboarding-hero ${pageLoaded ? 'animate-fade-up' : ''}`}>
-                <div className="hero-badge">Ver 2.0 AI Update</div>
+                <div className="hero-badge">Ver 2.0 Update</div>
                 <h1 className="onboarding-title">
                     데이터와 AI가 만드는<br />
                     <span className="text-gradient">완벽한 투자 시나리오</span>
