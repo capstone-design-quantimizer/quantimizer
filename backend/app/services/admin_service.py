@@ -158,7 +158,7 @@ def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List
                 FactorSpec(name="PER", direction="asc", weight=0.3),
                 FactorSpec(name="PBR", direction="asc", weight=0.2),
                 FactorSpec(name="EPS", direction="desc", weight=0.3),
-                FactorSpec(name="DividendYield", direction="desc", weight=0.2),
+                FactorSpec(name="DIVIDENDYIELD", direction="desc", weight=0.2),
             ]
             strategy = StrategySpec(
                 factors=factors,
@@ -171,8 +171,8 @@ def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List
             # Large Universe, Momentum_3M & Momentum_12M
             universe = UniverseSpec(market="ALL", min_market_cap=100000000000, excludes=[])
             factors = [
-                FactorSpec(name="Momentum_3M", direction="desc", weight=0.5),
-                FactorSpec(name="Momentum_12M", direction="desc", weight=0.5),
+                FactorSpec(name="MOMENTUM_3M", direction="desc", weight=0.5),
+                FactorSpec(name="MOMENTUM_12M", direction="desc", weight=0.5),
             ]
             strategy = StrategySpec(
                 factors=factors,
@@ -185,7 +185,7 @@ def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List
             # Small-cap Universe (represented by min_cap=0 and assuming universe selection), Momentum + PER
             universe = UniverseSpec(market="ALL", min_market_cap=0, excludes=[])
             factors = [
-                FactorSpec(name="Momentum_3M", direction="desc", weight=0.6),
+                FactorSpec(name="MOMENTUM_3M", direction="desc", weight=0.6),
                 FactorSpec(name="PER", direction="asc", weight=0.4),
             ]
             strategy = StrategySpec(
