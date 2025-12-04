@@ -149,16 +149,14 @@ def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List
         strategy = None
 
         if workload_type == "FUNDAMENTAL":
-            # Type 1: Fundamental Composite
-            # KOSPI/KOSDAQ Large-cap, PER/PBR/EPS/DividendYield
             market = random.choice(["KOSPI", "KOSDAQ"])
             universe = UniverseSpec(market=market, min_market_cap=50000000000, excludes=[])
             
             factors = [
-                FactorSpec(name="PER", direction="asc", weight=0.3),
+                FactorSpec(name="PER", direction="asc", weight=0.2),
                 FactorSpec(name="PBR", direction="asc", weight=0.2),
-                FactorSpec(name="EPS", direction="desc", weight=0.3),
-                FactorSpec(name="DIVIDENDYIELD", direction="desc", weight=0.2),
+                FactorSpec(name="ROE", direction="desc", weight=0.3),
+                FactorSpec(name="DEBTTOEQUITY", direction="asc", weight=0.3),
             ]
             strategy = StrategySpec(
                 factors=factors,
@@ -167,12 +165,11 @@ def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List
             )
 
         elif workload_type == "MOMENTUM":
-            # Type 2: Momentum Trend
-            # Large Universe, Momentum_3M & Momentum_12M
             universe = UniverseSpec(market="ALL", min_market_cap=100000000000, excludes=[])
             factors = [
-                FactorSpec(name="MOMENTUM_3M", direction="desc", weight=0.5),
-                FactorSpec(name="MOMENTUM_12M", direction="desc", weight=0.5),
+                FactorSpec(name="MOMENTUM_3M", direction="desc", weight=0.4),
+                FactorSpec(name="MOMENTUM_12M", direction="desc", weight=0.4),
+                FactorSpec(name="OPM", direction="desc", weight=0.2),
             ]
             strategy = StrategySpec(
                 factors=factors,
@@ -181,21 +178,19 @@ def _generate_workload_queries(count: int, workload_type: str = "MIXED") -> List
             )
 
         elif workload_type == "SMALLCAP":
-            # Type 3: High-turnover Small Cap
-            # Small-cap Universe (represented by min_cap=0 and assuming universe selection), Momentum + PER
             universe = UniverseSpec(market="ALL", min_market_cap=0, excludes=[])
             factors = [
-                FactorSpec(name="MOMENTUM_3M", direction="desc", weight=0.6),
-                FactorSpec(name="PER", direction="asc", weight=0.4),
+                FactorSpec(name="MOMENTUM_3M", direction="desc", weight=0.4),
+                FactorSpec(name="PER", direction="asc", weight=0.3),
+                FactorSpec(name="INTERESTCOVERAGE", direction="desc", weight=0.3),
             ]
             strategy = StrategySpec(
                 factors=factors,
                 portfolio=PortfolioSpec(top_n=50, weight_method="equal"),
-                rebalancing=RebalancingSpec(frequency="monthly"), # High-turnover simulation via query freq
+                rebalancing=RebalancingSpec(frequency="monthly"),
             )
 
         else:
-            # MIXED / Random
             market = random.choice(markets)
             min_cap = random.choice([0, 10000000000, 50000000000])
             universe = UniverseSpec(market=market, min_market_cap=min_cap, excludes=[])
