@@ -49,6 +49,8 @@ interface PilotListResponse {
     experiments: PilotExperiment[];
 }
 
+const PILOT_API_BASE = "http://ec2-52-79-240-51.ap-northeast-2.compute.amazonaws.com:8000";
+
 const formatKST = (dateString: string) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleString('ko-KR', {
@@ -127,8 +129,8 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
     const loadPilotExperiments = async () => {
         try {
             const offset = (pilotPage - 1) * pilotLimit;
-            // PDF API Endpoint: /api/experiments
-            const res = await api(`/api/experiments?limit=${pilotLimit}&offset=${offset}&sort=started_at&order=desc`);
+            // Use external PilotScope API URL directly
+            const res = await fetch(`${PILOT_API_BASE}/api/experiments?limit=${pilotLimit}&offset=${offset}&sort=started_at&order=desc`);
             if (res.ok) {
                 const data: PilotListResponse = await res.json();
                 setPilotExperiments(data.experiments);
@@ -139,7 +141,8 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
 
     const loadPilotDetail = async (id: number) => {
         try {
-            const res = await api(`/api/experiments/${id}`);
+            // Use external PilotScope API URL directly
+            const res = await fetch(`${PILOT_API_BASE}/api/experiments/${id}`);
             if (res.ok) {
                 const data = await res.json();
                 setSelectedPilotExp(data);
