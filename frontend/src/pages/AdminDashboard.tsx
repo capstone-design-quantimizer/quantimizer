@@ -9,14 +9,48 @@ import type {
     UserSummary
 } from '../types/index';
 import PerformanceChart from '../components/PerformanceChart'; 
-import { Modal } from '../components/Shared';
+import { Modal, Pagination } from '../components/Shared';
 
 interface Props {
     api: (url: string, opts?: any) => Promise<Response>;
     onLogout: () => void;
 }
 
+// PilotScope API Types based on OpenAPI spec
+interface PilotExperiment {
+    id: number;
+    run_id: string;
+    experiment_name?: string;
+    run_name: string;
+    algorithm: string;
+    dataset: string;
+    workload: string;
+    status: string;
+    execution_time: number | null;
+    started_at: string | null;
+    completed_at: string | null;
+}
+
+interface PilotExperimentDetail extends PilotExperiment {
+    metrics?: {
+        best_performance?: number;
+        [key: string]: any;
+    };
+    best_config?: {
+        best_configuration: Record<string, any>;
+    };
+    parameters?: Record<string, any>;
+}
+
+interface PilotListResponse {
+    total: number;
+    limit: number;
+    offset: number;
+    experiments: PilotExperiment[];
+}
+
 const formatKST = (dateString: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleString('ko-KR', {
         timeZone: 'Asia/Seoul',
         year: 'numeric',
@@ -29,7 +63,7 @@ const formatKST = (dateString: string) => {
 };
 
 const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
-    const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'tuning' | 'workload' | 'monitor'>('stats');
+    const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'tuning' | 'workload' | 'monitor' | 'pilot'>('stats');
 
     const [stats, setStats] = useState<AdminDashboardStats | null>(null);
     const [users, setUsers] = useState<UserSummary[]>([]);
@@ -47,6 +81,13 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
 
     const [selectedExecution, setSelectedExecution] = useState<WorkloadExecution | null>(null);
     const [monitorWorkloadId, setMonitorWorkloadId] = useState<string>('ALL');
+
+    // PilotScope State
+    const [pilotExperiments, setPilotExperiments] = useState<PilotExperiment[]>([]);
+    const [pilotTotal, setPilotTotal] = useState(0);
+    const [pilotPage, setPilotPage] = useState(1);
+    const pilotLimit = 10;
+    const [selectedPilotExp, setSelectedPilotExp] = useState<PilotExperimentDetail | null>(null);
 
     const loadStats = async () => {
         try {
@@ -83,6 +124,31 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
         } catch (e) { console.error(e); }
     };
 
+    const loadPilotExperiments = async () => {
+        try {
+            const offset = (pilotPage - 1) * pilotLimit;
+            // PDF API Endpoint: /api/experiments
+            const res = await api(`/api/experiments?limit=${pilotLimit}&offset=${offset}&sort=started_at&order=desc`);
+            if (res.ok) {
+                const data: PilotListResponse = await res.json();
+                setPilotExperiments(data.experiments);
+                setPilotTotal(data.total);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const loadPilotDetail = async (id: number) => {
+        try {
+            const res = await api(`/api/experiments/${id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setSelectedPilotExp(data);
+            } else {
+                Swal.fire("오류", "실험 상세 정보를 불러오지 못했습니다.", "error");
+            }
+        } catch (e) { console.error(e); }
+    };
+
     useEffect(() => {
         if (activeTab === 'stats') loadStats();
         if (activeTab === 'users') loadUsers();
@@ -93,7 +159,12 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
             loadExecutions();
             loadTuningLogs();
         }
+        if (activeTab === 'pilot') loadPilotExperiments();
     }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab === 'pilot') loadPilotExperiments();
+    }, [pilotPage]);
 
     const handleTuneUpload = async () => {
         if (!tuneFile) return Swal.fire("알림", "파일을 선택해주세요.", "warning");
@@ -281,7 +352,8 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                             { id: 'users', label: '사용자 관리' },
                             { id: 'tuning', label: 'DB 튜닝' },
                             { id: 'workload', label: '워크로드' },
-                            { id: 'monitor', label: '성능 모니터링' }
+                            { id: 'monitor', label: '성능 모니터링' },
+                            { id: 'pilot', label: 'PilotScope' }
                         ].map(tab => (
                             <button 
                                 key={tab.id} 
@@ -502,6 +574,62 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                         </div>
                     </div>
                 )}
+
+                {activeTab === 'pilot' && (
+                    <div className="card">
+                        <div className="card__header">PilotScope 실험 목록</div>
+                        <div className="table-wrapper">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>실험명</th>
+                                        <th>알고리즘</th>
+                                        <th>데이터셋</th>
+                                        <th>상태</th>
+                                        <th>실행 시간(초)</th>
+                                        <th>시작 일시</th>
+                                        <th>관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {pilotExperiments.map(exp => (
+                                        <tr key={exp.id}>
+                                            <td>{exp.id}</td>
+                                            <td style={{ fontWeight: 600 }}>
+                                                {exp.experiment_name || exp.run_name}
+                                                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>Run ID: {exp.run_id.substring(0, 8)}...</div>
+                                            </td>
+                                            <td><span className="badge">{exp.algorithm}</span></td>
+                                            <td>{exp.dataset}</td>
+                                            <td>
+                                                <span 
+                                                    style={{ 
+                                                        color: exp.status === 'FINISHED' ? 'green' : exp.status === 'RUNNING' ? 'blue' : 'red',
+                                                        fontWeight: 500 
+                                                    }}
+                                                >
+                                                    {exp.status}
+                                                </span>
+                                            </td>
+                                            <td>{exp.execution_time ? exp.execution_time.toFixed(2) : '-'}</td>
+                                            <td>{formatKST(exp.started_at || '')}</td>
+                                            <td>
+                                                <button className="btn btn--secondary btn--sm" onClick={() => loadPilotDetail(exp.id)}>
+                                                    🔍 상세
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {pilotExperiments.length === 0 && (
+                                        <tr><td colSpan={8} className="empty-table">조회된 실험 내역이 없습니다.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <Pagination current={pilotPage} total={pilotTotal} limit={pilotLimit} onChange={setPilotPage} />
+                    </div>
+                )}
             </main>
 
             {selectedWorkloadForQueries && (
@@ -614,6 +742,72 @@ const AdminDashboard: React.FC<Props> = ({ api, onLogout }) => {
                                 </pre>
                             </div>
                         </div>
+                    </div>
+                </Modal>
+            )}
+
+            {selectedPilotExp && (
+                <Modal title="PilotScope 실험 상세 정보" onClose={() => setSelectedPilotExp(null)} width={800}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <div style={{ paddingBottom: 16, borderBottom: '1px solid #eaeaea' }}>
+                            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+                                {selectedPilotExp.experiment_name || selectedPilotExp.run_name}
+                            </div>
+                            <div style={{ color: '#666', fontSize: 13 }}>ID: {selectedPilotExp.id} / Run: {selectedPilotExp.run_id}</div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                                <span className="badge">{selectedPilotExp.algorithm}</span>
+                                <span className="badge">{selectedPilotExp.dataset}</span>
+                                <span className="badge" style={{
+                                    background: selectedPilotExp.status === 'FINISHED' ? '#dcfce7' : '#fef9c3',
+                                    color: selectedPilotExp.status === 'FINISHED' ? '#166534' : '#854d0e'
+                                }}>{selectedPilotExp.status}</span>
+                            </div>
+                        </div>
+
+                        {selectedPilotExp.metrics && (
+                            <div>
+                                <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>실험 메트릭 (Metrics)</h4>
+                                <div className="metric-grid-compact" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                                    {Object.entries(selectedPilotExp.metrics).map(([key, val]) => (
+                                        <div key={key} className="metric-item">
+                                            <div className="metric-label">{key}</div>
+                                            <div className="metric-value">{typeof val === 'number' ? val.toFixed(4) : String(val)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedPilotExp.best_config && (
+                            <div>
+                                <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>추천 파라미터 (Best Configuration)</h4>
+                                <div style={{ 
+                                    background: '#1e293b', 
+                                    color: '#e2e8f0', 
+                                    padding: '16px', 
+                                    borderRadius: 8, 
+                                    fontFamily: 'var(--font-mono)', 
+                                    fontSize: 13,
+                                    maxHeight: 300,
+                                    overflowY: 'auto'
+                                }}>
+                                    <pre style={{ margin: 0 }}>
+                                        {JSON.stringify(selectedPilotExp.best_config.best_configuration, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedPilotExp.parameters && (
+                            <div>
+                                <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>하이퍼파라미터 (Parameters)</h4>
+                                <div style={{ background: '#f9fafb', padding: '12px', borderRadius: 8, fontSize: 13, color: '#444' }}>
+                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                                        {JSON.stringify(selectedPilotExp.parameters, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Modal>
             )}
